@@ -56,7 +56,7 @@ Instructions for the agent to follow when adding tables to a Harper database.
 ##### When to Use
 Use this skill when you need to define new data structures or modify existing ones in a Harper database.
 
-##### Steps
+##### How It Works
 1. **Create Dedicated Schema Files**: Prefer having a dedicated schema `.graphql` file for each table. Check the `config.yaml` file under `graphqlSchema.files` to see how it's configured. It typically accepts wildcards (e.g., `schemas/*.graphql`), but may be configured to point at a single file.
 2. **Use Directives**: All available directives for defining your schema are defined in `node_modules/harperdb/schema.graphql`. Common directives include `@table`, `@export`, `@primaryKey`, `@indexed`, and `@relationship`.
 3. **Define Relationships**: Link tables together using the `@relationship` directive. 
@@ -79,27 +79,37 @@ Using the `@relationship` directive to link tables.
 ##### When to Use
 Use this when you have two or more tables that need to be logically linked (e.g., a "Product" table and a "Category" table).
 
-##### Steps
-1. **Identify the Relationship**: Determine which table should "own" the relationship. This is typically the table that will hold the foreign key.
+##### How It Works
+1. **Identify the Relationship Type**: Determine if it's one-to-one, many-to-one, or one-to-many.
 2. **Apply the `@relationship` Directive**: In your GraphQL schema, use the `@relationship` directive on the field that links to another table.
-3. **Specify the `name` and `path` Arguments**:
-   - `name`: A unique name for the relationship.
-   - `path`: The field name in the current table that holds the value to match in the related table.
-4. **Define the Inverse Relationship (Optional but Recommended)**: For better queryability, define the relationship in the related table as well.
+   - **Many-to-One (Current table holds FK)**: Use `from`.
+     ```graphql
+     type Book @table @export {
+       authorId: ID
+       author: Author @relationship(from: "authorId")
+     }
+     ```
+   - **One-to-Many (Related table holds FK)**: Use `to` and an array type.
+     ```graphql
+     type Author @table @export {
+       books: [Book] @relationship(to: "authorId")
+     }
+     ```
+3. **Query with Relationships**: Use dot syntax in REST API calls for filtering or the `select()` operator for including related data.
 
 ##### Example
 ```graphql
 type Product @table @export {
     id: ID @primaryKey
     name: String
-    category: Category @relationship(name: "product_category", path: "category_id")
-    category_id: ID
+    categoryId: ID
+    category: Category @relationship(from: "categoryId")
 }
 
 type Category @table @export {
     id: ID @primaryKey
     name: String
-    products: [Product] @relationship(name: "product_category", path: "id")
+    products: [Product] @relationship(to: "categoryId")
 }
 ```
 
@@ -110,7 +120,7 @@ How to define and use vector indexes for efficient similarity search.
 ##### When to Use
 Use this when you need to perform similarity searches on high-dimensional data, such as image embeddings, text embeddings, or any other numeric vectors.
 
-##### Steps
+##### How It Works
 1. **Define the Vector Field**: In your GraphQL schema, define a field with a list of floats (e.g., `[Float]`).
 2. **Apply the `@indexed` Directive**: Use the `@indexed` directive on the vector field and specify the index type as `vector`.
 3. **Configure the Index (Optional)**: You can provide additional configuration for the vector index, such as the distance metric (e.g., `cosine`, `euclidean`).
@@ -127,12 +137,12 @@ type Document @table @export {
 
 #### 1.4 [Using Blobs](../../rules/harper/using-blob-datatype.md)
 
-How to store and retrieve large data in HarperDB.
+How to store and retrieve large data in Harper.
 
 ##### When to Use
 Use this when you need to store large, unstructured data such as files, images, or large text documents that exceed the typical size of a standard database field.
 
-##### Steps
+##### How It Works
 1. **Define the Blob Field**: Use the `Blob` scalar type in your GraphQL schema.
 2. **Storing Data**: Send the data as a buffer or a stream when creating or updating a record.
 3. **Retrieving Data**: Access the blob field, which will return the data as a stream or buffer.
@@ -144,8 +154,8 @@ How to store and serve binary data like images or MP3s.
 ##### When to Use
 Use this when your application needs to handle binary files, particularly for storage and retrieval.
 
-##### Steps
-1. **Use the `Blob` type**: As with general large data, the `Blob` type is best for binary files.
+##### How It Works
+1. **Use the `Blob` type**: As with general large data, the `Blob` type is best for binary files. Ensure you store and retrieve the appropriate MIME type (e.g., `image/jpeg`, `audio/mpeg`) for the data.
 2. **Streaming**: For large files, use streaming to minimize memory usage during upload and download.
 3. **MIME Types**: Store the MIME type alongside the binary data to ensure it is served correctly by your application logic.
 
@@ -187,8 +197,8 @@ Implementing WebSockets and Pub/Sub for live data updates.
 ##### When to Use
 Use this for applications that require live updates, such as chat apps, live dashboards, or collaborative tools.
 
-##### Steps
-1. **WebSocket Connection**: Connect to the Harper WebSocket endpoint.
+##### How It Works
+1. **WebSocket Connection**: Connect to the Harper WebSocket endpoint. Use `wss://` for secure connections over HTTPS, or `ws://` for local development.
 2. **Subscribing**: Subscribe to table updates or specific records.
 3. **Pub/Sub**: Use the internal bus to publish and subscribe to custom events.
 
@@ -199,7 +209,7 @@ How to use sessions to verify user identity and roles.
 ##### When to Use
 Use this to secure your application by ensuring that only authorized users can access certain resources or perform specific actions.
 
-##### Steps
+##### How It Works
 1. **Session Handling**: Access the session object from the request context.
 2. **Identity Verification**: Check for the presence of a user ID or token.
 3. **Role Checks**: Verify if the user has the required roles for the action.
@@ -214,7 +224,7 @@ Use this to secure your application by ensuring that only authorized users can a
 
 How to define custom REST endpoints using JavaScript or TypeScript.
 
-##### Steps
+##### How It Works
 1. **Create Resource File**: Define your logic in a JS or TS file.
 2. **Export Handlers**: Export functions like `GET`, `POST`, etc.
 3. **Registration**: Ensure the resource is correctly registered in your application configuration.
@@ -223,7 +233,7 @@ How to define custom REST endpoints using JavaScript or TypeScript.
 
 Adding custom logic to automatically generated table resources.
 
-##### Steps
+##### How It Works
 1. **Define Extension**: Create a resource file that targets an existing table.
 2. **Intercept Requests**: Use handlers to add custom validation or data transformation.
 3. **No `@export`**: If extending, remember not to `@export` the table in the schema.
@@ -285,7 +295,7 @@ bun create harper@latest
 
 Follow these steps to set up your Harper Fabric environment for deployment.
 
-##### Steps
+##### How It Works
 
 1. **Sign Up/In**: Go to [https://fabric.harper.fast/](https://fabric.harper.fast/) and sign up or sign in.
 2. **Create an Organization**: Create an organization (org) to manage your projects.
@@ -308,7 +318,7 @@ Globally scaling your Harper application.
 - **Automatic Sync**: Data is synced across the fabric automatically.
 - **Free Tier**: Start for free and scale as you grow.
 
-##### Steps
+##### How It Works
 1. **Sign up**: Follow the [Creating a Fabric Account and Cluster](#42-creating-a-fabric-account-and-cluster) steps to create a Harper Fabric account, organization, and cluster.
 2. **Configure Environment**: Add your cluster credentials and cluster application URL to `.env`:
    ```bash
@@ -368,15 +378,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          fetch-depth: 0
-          fetch-tags: true
+        uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        uses: actions/setup-node@v4
         with:
           cache: 'npm'
-          node-version-file: '.nvmrc'
+          node-version: '20'
       - name: Install dependencies
         run: npm ci
       - name: Run unit tests
@@ -385,6 +392,10 @@ jobs:
         run: npm run lint
       - name: Deploy
         run: npm run deploy
+        env:
+          CLI_TARGET: ${{ secrets.CLI_TARGET }}
+          CLI_TARGET_USERNAME: ${{ secrets.CLI_TARGET_USERNAME }}
+          CLI_TARGET_PASSWORD: ${{ secrets.CLI_TARGET_PASSWORD }}
 ```
 
 Be sure to set the following repository secrets in your GitHub repository:
@@ -397,5 +408,5 @@ Be sure to set the following repository secrets in your GitHub repository:
 Two ways to serve web content from a Harper application.
 
 ##### Methods
-1. **Static Serving**: Serve HTML, CSS, and JS files directly.
+1. **Static Serving**: Serve HTML, CSS, and JS files directly. If using the Vite plugin for development, ensure Harper is running (e.g., `harperdb run .`) to allow for Hot Module Replacement (HMR).
 2. **Dynamic Rendering**: Use custom resources to render content on the fly.
