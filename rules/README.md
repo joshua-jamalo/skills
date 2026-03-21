@@ -36,6 +36,7 @@ rules/
 ./install.sh golang
 ./install.sh swift
 ./install.sh php
+./install.sh csharp      # also accepts: c#, dotnet
 
 # Install multiple languages at once
 ./install.sh typescript python
@@ -59,6 +60,7 @@ cp -r rules/python ~/.claude/rules/python
 cp -r rules/golang ~/.claude/rules/golang
 cp -r rules/swift ~/.claude/rules/swift
 cp -r rules/php ~/.claude/rules/php
+cp -r rules/csharp ~/.claude/rules/csharp
 
 # Attention ! ! ! Configure according to your actual project requirements; the configuration here is for reference only.
 ```

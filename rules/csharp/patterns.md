@@ -116,7 +116,8 @@ Use `BackgroundService` for long-running tasks and `System.Threading.Channels` f
 ```csharp
 public sealed class EventProcessingWorker(
     Channel<IDomainEvent> channel,
-    IServiceScopeFactory scopeFactory) : BackgroundService
+    IServiceScopeFactory scopeFactory,
+    ILogger<EventProcessingWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -130,8 +131,7 @@ public sealed class EventProcessingWorker(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Log and continue processing remaining events
-                _ = ex; // replace with logger.LogError(ex, ...)
+                logger.LogError(ex, "Failed to handle event {EventType}", evt.GetType().Name);
             }
         }
     }

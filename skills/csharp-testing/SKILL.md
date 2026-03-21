@@ -13,6 +13,41 @@ Comprehensive testing strategies for C# and .NET applications using xUnit, Fluen
 - Writing new C# code (follow TDD: red, green, refactor)
 - Designing test suites for .NET projects
 - Reviewing C# test coverage
+
+## How It Works
+
+This skill enforces the TDD cycle (red-green-refactor) using xUnit as the test framework, FluentAssertions for readable assertions, and Moq or NSubstitute for mocking dependencies. It covers unit test organization with `[Fact]` and `[Theory]` attributes, integration testing with `WebApplicationFactory<Program>` for full HTTP pipeline coverage, async test patterns with `CancellationToken` propagation, test data builders for maintainable arrange steps, collection fixtures for shared expensive resources, property-based testing with FsCheck, and CI integration with coverage collection.
+
+## Examples
+
+**Simple unit test:**
+```csharp
+[Fact]
+public void Add_TwoNumbers_ReturnsSum()
+{
+    var result = Calculator.Add(2, 3);
+    result.Should().Be(5);
+}
+```
+
+**Theory with inline data:**
+```csharp
+[Theory]
+[InlineData("user@example.com", true)]
+[InlineData("invalid", false)]
+public void IsValid_ReturnsExpected(string email, bool expected) =>
+    EmailValidator.IsValid(email).Should().Be(expected);
+```
+
+**Integration test:**
+```csharp
+public sealed class OrderApiTests(CustomWebApplicationFactory factory)
+    : IClassFixture<CustomWebApplicationFactory>
+{
+    [Fact]
+    public async Task CreateOrder_Returns201() { /* ... */ }
+}
+```
 - Setting up testing infrastructure for ASP.NET Core APIs
 - Writing integration tests with `WebApplicationFactory`
 
@@ -458,17 +493,19 @@ public sealed class OrderApiTests(WebApplicationFactory<Program> factory)
 ```csharp
 public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly string _dbName = $"TestDb-{Guid.NewGuid()}";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
-            // Replace real database with in-memory
+            // Replace real database with in-memory (unique per factory instance)
             var descriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
             if (descriptor is not null) services.Remove(descriptor);
 
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase($"TestDb-{Guid.NewGuid()}"));
+                options.UseInMemoryDatabase(_dbName));
 
             // Replace external services with fakes
             services.AddSingleton<IEmailService, FakeEmailService>();
@@ -1019,10 +1056,8 @@ dotnet test --verbosity detailed
 # Run with coverage
 dotnet test --collect:"XPlat Code Coverage"
 
-# Stop on first failure (xUnit)
-dotnet test -- xUnit.FailSkips=true -e XUNIT_FAIL_ON_FIRST=1
-# Or use the VSTest blame-hang approach:
-dotnet test --blame-hang-timeout 30s
+# Stop on first failure
+dotnet test -p:VSTestStopOnError=true
 
 # Run with specific category
 dotnet test --filter "Category=Unit"

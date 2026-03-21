@@ -16,6 +16,31 @@ Deep EF Core patterns for building efficient, correct, and maintainable data acc
 - Writing and managing migrations
 - Adding interceptors, filters, or value converters
 
+## How It Works
+
+This skill covers EF Core data access patterns across eight areas: relationship configuration (one-to-many, many-to-many, owned types) using private backing fields for encapsulation, query optimization techniques to prevent N+1 queries using `Include`, projections, split queries, no-tracking, and compiled queries, value converters for enum-to-string mapping, strongly-typed IDs, JSON columns, and encrypted fields, optimistic concurrency control with `[Timestamp]` row versioning, global query filters for soft delete and multi-tenancy, interceptors for audit logging and slow query detection, safe migration patterns, and bulk operations with `ExecuteUpdate`/`ExecuteDelete`.
+
+## Examples
+
+**Avoid N+1 with Include:**
+```csharp
+var orders = await context.Orders.Include(o => o.Lines).ToListAsync(ct);
+```
+
+**Projection to avoid over-fetching:**
+```csharp
+var dtos = await context.Orders
+    .Select(o => new OrderDto(o.Id, o.Total, o.CreatedAt))
+    .ToListAsync(ct);
+```
+
+**Optimistic concurrency:**
+```csharp
+[Timestamp]
+public byte[] RowVersion { get; set; } = [];
+// SaveChangesAsync throws DbUpdateConcurrencyException on conflict
+```
+
 ## Relationship Configuration
 
 ### One-to-Many
@@ -23,9 +48,11 @@ Deep EF Core patterns for building efficient, correct, and maintainable data acc
 ```csharp
 public sealed class Customer
 {
+    private readonly List<Order> _orders = [];
+
     public Guid Id { get; init; }
     public required string Name { get; init; }
-    public List<Order> Orders { get; init; } = [];
+    public IReadOnlyList<Order> Orders => _orders.AsReadOnly();
 }
 
 public sealed class Order
@@ -50,16 +77,20 @@ modelBuilder.Entity<Order>(entity =>
 ```csharp
 public sealed class Article
 {
+    private readonly List<Tag> _tags = [];
+
     public Guid Id { get; init; }
     public required string Title { get; init; }
-    public IReadOnlyList<Tag> Tags { get; init; } = [];
+    public IReadOnlyList<Tag> Tags => _tags.AsReadOnly();
 }
 
 public sealed class Tag
 {
+    private readonly List<Article> _articles = [];
+
     public Guid Id { get; init; }
     public required string Name { get; init; }
-    public IReadOnlyList<Article> Articles { get; init; } = [];
+    public IReadOnlyList<Article> Articles => _articles.AsReadOnly();
 }
 
 // EF Core 7+ skip navigations (no join entity needed)

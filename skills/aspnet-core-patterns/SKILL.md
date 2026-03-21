@@ -13,6 +13,28 @@ Deep patterns for building production-grade ASP.NET Core APIs and services. Comp
 - Designing ASP.NET Core APIs (minimal or controller-based)
 - Implementing authentication and authorization
 - Adding cross-cutting concerns (rate limiting, caching, health checks)
+
+## How It Works
+
+This skill provides production patterns for the ASP.NET Core middleware pipeline. It covers JWT and policy-based authorization with custom requirement handlers, partitioned rate limiting that respects authenticated user identity, health check probes with readiness tagging, output caching with tag-based invalidation, OpenAPI metadata, CORS configuration, advanced middleware (correlation IDs, request logging, idempotency), SignalR real-time hubs, API versioning, and Problem Details (RFC 9457). All patterns follow the correct middleware pipeline ordering.
+
+## Examples
+
+**Require authorization on an endpoint:**
+```csharp
+app.MapGet("/api/orders", GetOrders).RequireAuthorization("admin-only");
+```
+
+**Apply rate limiting:**
+```csharp
+app.MapGet("/api/data", Handler).RequireRateLimiting("api");
+```
+
+**Output cache with invalidation:**
+```csharp
+app.MapGet("/api/products", GetProducts).CacheOutput("products");
+// Invalidate: await cache.EvictByTagAsync("products", ct);
+```
 - Configuring middleware pipelines
 - Building real-time features with SignalR
 
@@ -139,6 +161,8 @@ builder.Services.AddRateLimiter(options =>
     });
 
     // Per-user sliding window (partitioned by authenticated user)
+    // NOTE: Place app.UseRateLimiter() AFTER app.UseAuthentication()
+    // in the middleware pipeline so HttpContext.User is populated.
     options.AddPolicy("per-user", httpContext =>
         RateLimitPartition.GetSlidingWindowLimiter(
             httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
@@ -235,6 +259,7 @@ app.MapGet("/api/products", GetProducts).CacheOutput("products");
 // Invalidate cache by tag
 app.MapPost("/api/products", async (
     CreateProductRequest request,
+    IProductRepository productRepository,
     IOutputCacheStore cache,
     CancellationToken cancellationToken) =>
 {
@@ -348,6 +373,8 @@ public sealed class RequestLoggingMiddleware(
 ### Idempotency Middleware
 
 ```csharp
+private sealed record CachedIdempotentResponse(int StatusCode, string Body);
+
 public sealed class IdempotencyMiddleware(
     RequestDelegate next,
     IDistributedCache cache)
@@ -375,9 +402,10 @@ public sealed class IdempotencyMiddleware(
 
         if (cachedResponse is not null)
         {
-            context.Response.StatusCode = StatusCodes.Status200OK;
+            var cached = JsonSerializer.Deserialize<CachedIdempotentResponse>(cachedResponse)!;
+            context.Response.StatusCode = cached.StatusCode;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(cachedResponse);
+            await context.Response.WriteAsync(cached.Body);
             return;
         }
 
@@ -394,7 +422,8 @@ public sealed class IdempotencyMiddleware(
 
             if (context.Response.StatusCode is >= 200 and < 300)
             {
-                await cache.SetStringAsync(cacheKey, responseBody,
+                var entry = new CachedIdempotentResponse(context.Response.StatusCode, responseBody);
+                await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(entry),
                     new DistributedCacheEntryOptions
                     {
                         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
@@ -550,11 +579,11 @@ app.UseRouting();
 // 6. CORS (must be between routing and auth)
 app.UseCors();
 
-// 7. Rate limiting
-app.UseRateLimiter();
-
-// 8. Authentication (who are you?)
+// 7. Authentication (who are you?)
 app.UseAuthentication();
+
+// 8. Rate limiting (after auth so per-user policies work)
+app.UseRateLimiter();
 
 // 9. Authorization (what can you do?)
 app.UseAuthorization();

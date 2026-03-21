@@ -16,6 +16,30 @@ Deep async/await and concurrency patterns for C# and .NET. Complements the gener
 - Streaming data with IAsyncEnumerable
 - Choosing between Task and ValueTask
 
+## How It Works
+
+This skill covers async/await primitives and concurrency patterns across six areas: `Task` vs `ValueTask` selection based on allocation characteristics, `CancellationToken` propagation and cooperative cancellation, `IAsyncEnumerable<T>` for streaming producers and consumers, `Channel<T>` for bounded producer-consumer pipelines with backpressure, `SemaphoreSlim` and `Parallel.ForEachAsync` for throttling concurrent I/O, and `PeriodicTimer` with `TaskCompletionSource` for background scheduling and callback bridging.
+
+## Examples
+
+**Cancellation propagation:**
+```csharp
+await httpClient.GetAsync(url, cancellationToken);
+```
+
+**Bounded channel producer-consumer:**
+```csharp
+var channel = Channel.CreateBounded<WorkItem>(100);
+await channel.Writer.WriteAsync(item, ct);
+await foreach (var work in channel.Reader.ReadAllAsync(ct)) { /* process */ }
+```
+
+**Throttled concurrency:**
+```csharp
+await Parallel.ForEachAsync(urls, new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (url, ct) =>
+    await DownloadAsync(url, ct));
+```
+
 ## Task vs ValueTask
 
 ```csharp
@@ -175,7 +199,8 @@ var recentOrders = await StreamOrdersAsync(customerId, ct)
 ### Returning Async Streams from APIs
 
 ```csharp
-app.MapGet("/api/orders/stream", (
+app.MapGet("/api/orders/{customerId:guid}/stream", (
+    Guid customerId,
     IOrderService service,
     CancellationToken ct) =>
 {
@@ -259,6 +284,8 @@ public static class Pipeline
         int concurrency,
         CancellationToken ct)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(concurrency, 1);
+
         var output = Channel.CreateBounded<TOut>(new BoundedChannelOptions(concurrency * 2)
         {
             FullMode = BoundedChannelFullMode.Wait
