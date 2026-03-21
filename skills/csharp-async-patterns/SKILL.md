@@ -297,7 +297,7 @@ public static class Pipeline
 
         Task.Run(async () =>
         {
-            using var semaphore = new SemaphoreSlim(concurrency);
+            using var semaphore = new SemaphoreSlim(concurrency, concurrency);
             var tasks = new List<Task>();
 
             try
@@ -331,7 +331,7 @@ public static class Pipeline
             }
 
             output.Writer.Complete();
-        }, ct);
+        });
 
         return output.Reader;
     }
