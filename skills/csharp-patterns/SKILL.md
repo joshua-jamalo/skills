@@ -201,12 +201,12 @@ public async Task<IReadOnlyList<OrderSummaryDto>> GetSummariesAsync(
     CancellationToken cancellationToken)
 {
     return await context.Orders
+        .AsNoTracking()
         .Where(o => o.CustomerId == customerId)
         .Select(o => new OrderSummaryDto(
             o.Id,
             o.CreatedAt,
             o.Lines.Sum(l => l.Quantity * l.UnitPrice)))
-        .AsNoTracking()
         .ToListAsync(cancellationToken);
 }
 
@@ -239,7 +239,7 @@ catch
 {
     // Compensate: mark order as payment-failed rather than rolling back
     order.Status = OrderStatus.PaymentFailed;
-    await context.SaveChangesAsync(cancellationToken);
+    await context.SaveChangesAsync(CancellationToken.None); // compensation must not be cancelled
     throw;
 }
 
