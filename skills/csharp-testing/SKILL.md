@@ -714,7 +714,10 @@ public sealed class PostgresOrderRepositoryTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _context.DisposeAsync();
+        if (_context is not null)
+        {
+            await _context.DisposeAsync();
+        }
         await _postgres.DisposeAsync();
     }
 }
