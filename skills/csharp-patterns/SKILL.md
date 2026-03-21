@@ -637,7 +637,11 @@ public sealed class EventProcessingWorker(
                     await handler.HandleAsync(domainEvent, stoppingToken);
                 }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw; // graceful shutdown — let BackgroundService stop
+            }
+            catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to process event {EventType}", domainEvent.GetType().Name);
             }

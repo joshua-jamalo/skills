@@ -263,7 +263,11 @@ public sealed class EventProcessingWorker(
                     .GetRequiredService<IDomainEventHandler>();
                 await handler.HandleAsync(domainEvent, ct);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw; // graceful shutdown — let BackgroundService stop
+            }
+            catch (Exception ex)
             {
                 logger.LogError(ex, "Consumer {Id} failed on {EventType}",
                     consumerId, domainEvent.GetType().Name);
@@ -403,7 +407,11 @@ public sealed class MetricsCollectorWorker(
             {
                 await metrics.CollectAsync(stoppingToken);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw; // graceful shutdown
+            }
+            catch (Exception ex)
             {
                 logger.LogError(ex, "Metrics collection failed");
             }

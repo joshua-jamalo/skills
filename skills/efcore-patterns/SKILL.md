@@ -408,6 +408,9 @@ public sealed class AuditInterceptor(IHttpContextAccessor httpContextAccessor)
 }
 
 // Registration
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<AuditInterceptor>();
+
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.UseNpgsql(connectionString)
         .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
