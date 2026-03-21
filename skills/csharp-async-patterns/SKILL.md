@@ -332,6 +332,7 @@ public static class Pipeline
                 try { await Task.WhenAll(tasks); } catch { /* already faulting */ }
                 output.Writer.Complete(ex);
             }
+        });
 
         return output.Reader;
     }
