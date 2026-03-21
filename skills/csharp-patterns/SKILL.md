@@ -637,7 +637,7 @@ public sealed class EventProcessingWorker(
                     await handler.HandleAsync(domainEvent, stoppingToken);
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Failed to process event {EventType}", domainEvent.GetType().Name);
             }

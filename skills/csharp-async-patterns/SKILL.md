@@ -263,7 +263,7 @@ public sealed class EventProcessingWorker(
                     .GetRequiredService<IDomainEventHandler>();
                 await handler.HandleAsync(domainEvent, ct);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Consumer {Id} failed on {EventType}",
                     consumerId, domainEvent.GetType().Name);
@@ -403,7 +403,7 @@ public sealed class MetricsCollectorWorker(
             {
                 await metrics.CollectAsync(stoppingToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Metrics collection failed");
             }

@@ -410,7 +410,10 @@ public sealed class IdempotencyMiddleware(
             }
 
             context.Response.StatusCode = cached.StatusCode;
-            context.Response.ContentType = cached.ContentType;
+            context.Response.ContentType =
+                string.IsNullOrWhiteSpace(cached.ContentType)
+                    ? "application/json"
+                    : cached.ContentType;
             await context.Response.WriteAsync(cached.Body);
             return;
         }
