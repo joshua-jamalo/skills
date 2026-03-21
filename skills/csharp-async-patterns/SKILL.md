@@ -482,9 +482,15 @@ public sealed class DatabaseSession(NpgsqlConnection connection) : IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
-        if (_transaction is not null)
-            await _transaction.DisposeAsync();
-        await _connection.DisposeAsync();
+        try
+        {
+            if (_transaction is not null)
+                await _transaction.DisposeAsync();
+        }
+        finally
+        {
+            await _connection.DisposeAsync();
+        }
     }
 }
 
