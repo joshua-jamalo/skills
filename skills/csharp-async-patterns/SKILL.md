@@ -316,7 +316,7 @@ public static class Pipeline
                         {
                             semaphore.Release();
                         }
-                    }, ct));
+                    }));
                 }
 
                 await Task.WhenAll(tasks);
