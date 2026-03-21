@@ -67,8 +67,12 @@ public sealed class MinimumAgeHandler : AuthorizationHandler<MinimumAgeRequireme
         var birthDateClaim = context.User.FindFirst("birth_date");
         if (birthDateClaim is null) return Task.CompletedTask;
 
-        var birthDate = DateOnly.Parse(birthDateClaim.Value);
-        var age = DateOnly.FromDateTime(DateTime.UtcNow).Year - birthDate.Year;
+        if (!DateOnly.TryParse(birthDateClaim.Value, out var birthDate))
+            return Task.CompletedTask;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var age = today.Year - birthDate.Year;
+        if (birthDate > today.AddYears(-age)) age--; // hasn't had birthday yet this year
 
         if (age >= requirement.MinimumAge)
             context.Succeed(requirement);
@@ -134,13 +138,16 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueLimit = 10;
     });
 
-    // Per-user sliding window
-    options.AddSlidingWindowLimiter("per-user", limiter =>
-    {
-        limiter.PermitLimit = 50;
-        limiter.Window = TimeSpan.FromMinutes(1);
-        limiter.SegmentsPerWindow = 6;
-    });
+    // Per-user sliding window (partitioned by authenticated user)
+    options.AddPolicy("per-user", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 50,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6
+            }));
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
@@ -163,10 +170,10 @@ app.MapGroup("/api/user").RequireRateLimiting("per-user");
 
 ```csharp
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>("database")
-    .AddRedis(builder.Configuration.GetConnectionString("Redis")!, "redis")
+    .AddDbContextCheck<AppDbContext>("database", tags: ["ready"])
+    .AddRedis(builder.Configuration.GetConnectionString("Redis")!, "redis", tags: ["ready"])
     .AddUrlGroup(new Uri("https://external-api.example.com/health"), "external-api",
-        timeout: TimeSpan.FromSeconds(5))
+        timeout: TimeSpan.FromSeconds(5), tags: ["ready"])
     .AddCheck<DiskSpaceHealthCheck>("disk-space");
 
 // Custom health check
@@ -231,7 +238,7 @@ app.MapPost("/api/products", async (
     IOutputCacheStore cache,
     CancellationToken cancellationToken) =>
 {
-    // save product...
+    var product = await productRepository.CreateAsync(request, cancellationToken);
     await cache.EvictByTagAsync("products", cancellationToken);
     return TypedResults.Created($"/api/products/{product.Id}", product);
 });
@@ -362,7 +369,8 @@ public sealed class IdempotencyMiddleware(
             return;
         }
 
-        var cacheKey = $"idempotency:{idempotencyKey}";
+        var userId = context.User.Identity?.Name ?? "anonymous";
+        var cacheKey = $"idempotency:{userId}:{idempotencyKey}";
         var cachedResponse = await cache.GetStringAsync(cacheKey);
 
         if (cachedResponse is not null)
@@ -374,25 +382,33 @@ public sealed class IdempotencyMiddleware(
         }
 
         var originalBody = context.Response.Body;
-        using var memoryStream = new MemoryStream();
-        context.Response.Body = memoryStream;
-
-        await next(context);
-
-        memoryStream.Seek(0, SeekOrigin.Begin);
-        var responseBody = await new StreamReader(memoryStream).ReadToEndAsync();
-
-        if (context.Response.StatusCode is >= 200 and < 300)
+        var memoryStream = new MemoryStream();
+        try
         {
-            await cache.SetStringAsync(cacheKey, responseBody,
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
-                });
-        }
+            context.Response.Body = memoryStream;
 
-        memoryStream.Seek(0, SeekOrigin.Begin);
-        await memoryStream.CopyToAsync(originalBody);
+            await next(context);
+
+            memoryStream.Seek(0, SeekOrigin.Begin);
+            var responseBody = await new StreamReader(memoryStream).ReadToEndAsync();
+
+            if (context.Response.StatusCode is >= 200 and < 300)
+            {
+                await cache.SetStringAsync(cacheKey, responseBody,
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
+                    });
+            }
+
+            memoryStream.Seek(0, SeekOrigin.Begin);
+            await memoryStream.CopyToAsync(originalBody);
+        }
+        finally
+        {
+            context.Response.Body = originalBody;
+            await memoryStream.DisposeAsync();
+        }
     }
 }
 ```

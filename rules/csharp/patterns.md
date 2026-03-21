@@ -49,7 +49,6 @@ public sealed class PaymentsOptions
 builder.Services
     .AddOptions<PaymentsOptions>()
     .BindConfiguration(PaymentsOptions.SectionName)
-    .ValidateDataAnnotations()
     .ValidateOnStart();
 ```
 
@@ -123,9 +122,17 @@ public sealed class EventProcessingWorker(
     {
         await foreach (var evt in channel.Reader.ReadAllAsync(stoppingToken))
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var handler = scope.ServiceProvider.GetRequiredService<IEventHandler>();
-            await handler.HandleAsync(evt, stoppingToken);
+            try
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var handler = scope.ServiceProvider.GetRequiredService<IEventHandler>();
+                await handler.HandleAsync(evt, stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Log and continue processing remaining events
+                _ = ex; // replace with logger.LogError(ex, ...)
+            }
         }
     }
 }

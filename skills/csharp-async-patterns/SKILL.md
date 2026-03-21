@@ -179,7 +179,7 @@ app.MapGet("/api/orders/stream", (
     IOrderService service,
     CancellationToken ct) =>
 {
-    return service.StreamOrdersAsync(ct);
+    return service.StreamOrdersAsync(customerId, ct);
 });
 ```
 
@@ -259,31 +259,44 @@ public static class Pipeline
         int concurrency,
         CancellationToken ct)
     {
-        var output = Channel.CreateUnbounded<TOut>();
+        var output = Channel.CreateBounded<TOut>(new BoundedChannelOptions(concurrency * 2)
+        {
+            FullMode = BoundedChannelFullMode.Wait
+        });
 
         Task.Run(async () =>
         {
             var semaphore = new SemaphoreSlim(concurrency);
-            var tasks = new List<Task>();
 
-            await foreach (var item in source.ReadAllAsync(ct))
+            try
             {
-                await semaphore.WaitAsync(ct);
-                tasks.Add(Task.Run(async () =>
+                var tasks = new List<Task>();
+
+                await foreach (var item in source.ReadAllAsync(ct))
                 {
-                    try
+                    await semaphore.WaitAsync(ct);
+                    tasks.Add(Task.Run(async () =>
                     {
-                        var result = await transform(item, ct);
-                        await output.Writer.WriteAsync(result, ct);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                }, ct));
+                        try
+                        {
+                            var result = await transform(item, ct);
+                            await output.Writer.WriteAsync(result, ct);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }, ct));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                output.Writer.Complete(ex);
+                return;
             }
 
-            await Task.WhenAll(tasks);
             output.Writer.Complete();
         }, ct);
 
@@ -305,7 +318,7 @@ var enriched = validated
 ```csharp
 public sealed class ThrottledApiClient(HttpClient httpClient)
 {
-    private readonly SemaphoreSlim _semaphore = new(maxCount: 10);
+    private readonly SemaphoreSlim _semaphore = new(initialCount: 10, maxCount: 10);
 
     public async Task<T> GetAsync<T>(string url, CancellationToken ct)
     {
@@ -388,13 +401,25 @@ public sealed class CallbackToAsyncBridge
 
         _pending[request.Id] = tcs;
 
-        cancellationToken.Register(() =>
+        var registration = cancellationToken.Register(() =>
         {
             if (_pending.TryRemove(request.Id, out var removed))
                 removed.TrySetCanceled(cancellationToken);
         });
 
-        Send(request); // fire-and-forget the actual send
+        try
+        {
+            Send(request); // fire-and-forget the actual send
+        }
+        catch
+        {
+            _pending.TryRemove(request.Id, out _);
+            registration.Dispose();
+            throw;
+        }
+
+        // Dispose registration when task completes to avoid leaks
+        tcs.Task.ContinueWith(_ => registration.Dispose(), TaskScheduler.Default);
         return tcs.Task;
     }
 

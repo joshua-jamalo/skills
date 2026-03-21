@@ -100,7 +100,7 @@ public async Task<Order> LoadOrderAsync(
 
 ```csharp
 // Good: Modern C# patterns
-public sealed class OrderService(IOrderRepository repository, ILogger<OrderService> logger)
+public sealed partial class OrderService(IOrderRepository repository, ILogger<OrderService> logger)
 {
     [LoggerMessage(Level = LogLevel.Information, Message = "Order {OrderId} created")]
     private static partial void LogOrderCreated(ILogger logger, Guid orderId);

@@ -25,7 +25,7 @@ public sealed class Customer
 {
     public Guid Id { get; init; }
     public required string Name { get; init; }
-    public IReadOnlyList<Order> Orders { get; init; } = [];
+    public List<Order> Orders { get; init; } = [];
 }
 
 public sealed class Order

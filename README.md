@@ -188,13 +188,13 @@ npm install        # or: pnpm install | yarn install | bun install
 
 ```powershell
 # Windows PowerShell
-.\install.ps1 typescript   # or python or golang or swift or php
+.\install.ps1 typescript   # or python or golang or swift or php or csharp
 # .\install.ps1 typescript python golang swift php
 # .\install.ps1 --target cursor typescript
 # .\install.ps1 --target antigravity typescript
 
 # npm-installed compatibility entrypoint also works cross-platform
-npx ecc-install typescript
+npx ecc-install typescript   # or csharp, python, golang, etc.
 ```
 
 For manual install instructions see the README in the `rules/` folder.
@@ -909,7 +909,7 @@ Please contribute! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Ideas for Contributions
 
-- Language-specific skills (Rust, C#, Kotlin, Java) — Go, Python, Perl, Swift, and TypeScript already included
+- Language-specific skills (Rust, Kotlin, Java) — C#, Go, Python, Perl, Swift, and TypeScript already included
 - Framework-specific configs (Rails, FastAPI, NestJS) — Django, Spring Boot, Laravel already included
 - DevOps agents (Kubernetes, Terraform, AWS, Docker)
 - Testing strategies (different frameworks, visual regression)

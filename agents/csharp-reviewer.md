@@ -19,7 +19,7 @@ You are a senior C# and .NET code reviewer ensuring idiomatic, safe, and maintai
 
 ### Step 1: Gather Context
 
-Run `git diff --staged` and `git diff` to see changes. If no diff, check `git log --oneline -5`. Identify `.cs`, `.csx`, and `.csproj` files that changed.
+Run `git diff --staged` and `git diff` to see changes. If no diff, check `git log --oneline -5`. Identify `.cs`, `.csx`, and `.csproj` files that changed. Verify CI checks pass and the branch is conflict-free before reviewing.
 
 ### Step 2: Understand Project Structure
 
@@ -108,7 +108,7 @@ var orders = await context.Orders
 ### Dependency Injection (HIGH)
 
 - **Captive dependency** — Singleton holding a scoped or transient service (lifetime mismatch)
-- **Field injection** — Using `[Inject]` or manual resolution instead of constructor injection
+- **Field injection** — Using manual service resolution instead of constructor injection (note: `[Inject]` is valid in Blazor components)
 - **Registering everything as Singleton** — Scoped services (DbContext) must stay scoped
 - **Missing interface abstraction** — Concrete classes injected directly across layer boundaries
 

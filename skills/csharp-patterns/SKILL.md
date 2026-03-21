@@ -227,20 +227,19 @@ public async Task<PagedResult<OrderDto>> GetPagedAsync(
     return new PagedResult<OrderDto>(items, totalCount, page, pageSize);
 }
 
-// Good: Explicit transaction for multi-step writes
-await using var transaction = await context.Database
-    .BeginTransactionAsync(cancellationToken);
+// Good: Separate DB commit from external I/O to avoid holding transactions open
+context.Orders.Add(order);
+await context.SaveChangesAsync(cancellationToken);
+
 try
 {
-    context.Orders.Add(order);
-    await context.SaveChangesAsync(cancellationToken);
-
     await paymentService.ChargeAsync(order.Total, cancellationToken);
-    await transaction.CommitAsync(cancellationToken);
 }
 catch
 {
-    await transaction.RollbackAsync(cancellationToken);
+    // Compensate: mark order as payment-failed rather than rolling back
+    order.Status = OrderStatus.PaymentFailed;
+    await context.SaveChangesAsync(cancellationToken);
     throw;
 }
 
@@ -570,7 +569,14 @@ public sealed class OrderProcessingWorker(
                 logger.LogError(ex, "Error processing orders");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
 
         logger.LogInformation("Order processing worker stopped");

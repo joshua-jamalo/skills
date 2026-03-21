@@ -24,7 +24,7 @@ Run these in order:
 ```bash
 dotnet restore 2>&1
 dotnet build --no-restore 2>&1
-dotnet test --no-build 2>&1
+dotnet test 2>&1
 dotnet format --verify-no-changes 2>&1 || echo "format issues found"
 ```
 
@@ -71,21 +71,22 @@ dotnet nuget locals all --clear && dotnet restore
 # Check NuGet sources
 dotnet nuget list source
 
-# Add a NuGet source
+# Add a NuGet source (use only approved/trusted feeds)
 dotnet nuget add source <url> --name <name>
+# WARNING: Only add sources from your organization's approved feed list
 ```
 
 ## Project File Troubleshooting
 
 ```bash
-# Check target framework
-grep -r TargetFramework *.csproj
+# Check target framework (recursive)
+grep -r TargetFramework --include="*.csproj" .
 
 # Check for Directory.Build.props
 find . -name "Directory.Build.props" -o -name "Directory.Build.targets"
 
-# Check implicit usings
-grep -r ImplicitUsings *.csproj
+# Check implicit usings (recursive)
+grep -r ImplicitUsings --include="*.csproj" .
 
 # Verify solution structure
 dotnet sln list

@@ -468,7 +468,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             if (descriptor is not null) services.Remove(descriptor);
 
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase("TestDb"));
+                options.UseInMemoryDatabase($"TestDb-{Guid.NewGuid()}"));
 
             // Replace external services with fakes
             services.AddSingleton<IEmailService, FakeEmailService>();
@@ -1019,8 +1019,10 @@ dotnet test --verbosity detailed
 # Run with coverage
 dotnet test --collect:"XPlat Code Coverage"
 
-# Run until first failure
-dotnet test -- RunConfiguration.MaxCpuCount=1
+# Stop on first failure (xUnit)
+dotnet test -- xUnit.FailSkips=true -e XUNIT_FAIL_ON_FIRST=1
+# Or use the VSTest blame-hang approach:
+dotnet test --blame-hang-timeout 30s
 
 # Run with specific category
 dotnet test --filter "Category=Unit"

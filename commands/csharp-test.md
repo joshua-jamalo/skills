@@ -244,9 +244,10 @@ public void IsValidDate_VariousInputs_ReturnsExpected(string input, bool expecte
 public async Task GetOrderAsync_ExistingId_ReturnsOrder()
 {
     // Arrange
+    var orderId = Guid.NewGuid();
     var repository = new Mock<IOrderRepository>();
     repository
-        .Setup(r => r.FindByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        .Setup(r => r.FindByIdAsync(orderId, It.IsAny<CancellationToken>()))
         .ReturnsAsync(new Order { Id = orderId });
     var service = new OrderService(repository.Object);
 

@@ -104,9 +104,9 @@ Recommendation: ❌ Block merge until CRITICAL issue is fixed
 
 | Status | Condition |
 |--------|-----------|
-| ✅ Approve | No CRITICAL or HIGH issues |
-| ⚠️ Warning | Only MEDIUM issues (merge with caution) |
-| ❌ Block | CRITICAL or HIGH issues found |
+| ✅ Approve | No CRITICAL or HIGH issues and CI checks pass |
+| ⚠️ Warning | Only MEDIUM issues, CI checks pass (merge with caution) |
+| ❌ Block | CRITICAL or HIGH issues found, or CI checks failing |
 
 ## Integration with Other Commands
 
