@@ -712,7 +712,11 @@ public sealed class PostgresOrderRepositoryTests : IAsyncLifetime
         result!.Id.Should().Be(order.Id);
     }
 
-    public async Task DisposeAsync() => await _postgres.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _context.DisposeAsync();
+        await _postgres.DisposeAsync();
+    }
 }
 ```
 
