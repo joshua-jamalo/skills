@@ -489,7 +489,7 @@ public sealed class DatabaseSession(NpgsqlConnection connection) : IAsyncDisposa
 }
 
 // Usage
-await using var session = new DatabaseSession();
+await using var session = new DatabaseSession(connection);
 await session.BeginTransactionAsync(ct);
 // work...
 await session.CommitAsync(ct);

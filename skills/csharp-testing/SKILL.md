@@ -13,6 +13,8 @@ Comprehensive testing strategies for C# and .NET applications using xUnit, Fluen
 - Writing new C# code (follow TDD: red, green, refactor)
 - Designing test suites for .NET projects
 - Reviewing C# test coverage
+- Setting up testing infrastructure for ASP.NET Core APIs
+- Writing integration tests with `WebApplicationFactory`
 
 ## How It Works
 
@@ -48,8 +50,6 @@ public sealed class OrderApiTests(CustomWebApplicationFactory factory)
     public async Task CreateOrder_Returns201() { /* ... */ }
 }
 ```
-- Setting up testing infrastructure for ASP.NET Core APIs
-- Writing integration tests with `WebApplicationFactory`
 
 ## Core Testing Philosophy
 

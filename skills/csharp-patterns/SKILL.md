@@ -243,11 +243,12 @@ catch
     throw;
 }
 
-// Good: Compiled queries for hot paths
+// Good: Compiled queries for hot paths (EF Core 9+ required for Include)
+// For EF Core 7/8, remove Include and load navigation separately
 private static readonly Func<AppDbContext, Guid, CancellationToken, Task<Order?>> FindOrderById =
     EF.CompileAsyncQuery((AppDbContext ctx, Guid id, CancellationToken ct) =>
         ctx.Orders
-            .Include(o => o.Lines)
+            .Include(o => o.Lines)  // requires EF Core 9+
             .FirstOrDefault(o => o.Id == id));
 
 // Good: Repository pattern
