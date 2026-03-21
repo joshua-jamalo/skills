@@ -193,13 +193,20 @@ builder.Services.AddDbContext<ReadOnlyDbContext>(options =>
 ### Compiled Queries
 
 ```csharp
-// Pre-compile hot-path queries
+// Pre-compile hot-path queries (EF Core 9+ required for Include support)
+// For EF Core 7/8, remove Include and load navigation separately
 private static readonly Func<AppDbContext, Guid, CancellationToken, Task<Order?>>
     FindOrderById = EF.CompileAsyncQuery(
         (AppDbContext ctx, Guid id, CancellationToken ct) =>
             ctx.Orders
-                .Include(o => o.Lines)
+                .Include(o => o.Lines)  // requires EF Core 9+
                 .FirstOrDefault(o => o.Id == id));
+
+// EF Core 7/8 fallback — compile without Include, load navigation explicitly
+private static readonly Func<AppDbContext, Guid, CancellationToken, Task<Order?>>
+    FindOrderByIdV7 = EF.CompileAsyncQuery(
+        (AppDbContext ctx, Guid id, CancellationToken ct) =>
+            ctx.Orders.FirstOrDefault(o => o.Id == id));
 
 // Usage
 var order = await FindOrderById(context, orderId, ct);

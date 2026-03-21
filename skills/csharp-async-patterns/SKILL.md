@@ -464,9 +464,9 @@ public sealed class CallbackToAsyncBridge
 ## Async Disposal
 
 ```csharp
-public sealed class DatabaseSession : IAsyncDisposable
+public sealed class DatabaseSession(NpgsqlConnection connection) : IAsyncDisposable
 {
-    private readonly NpgsqlConnection _connection;
+    private readonly NpgsqlConnection _connection = connection;
     private NpgsqlTransaction? _transaction;
 
     public async Task BeginTransactionAsync(CancellationToken ct)

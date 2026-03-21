@@ -512,6 +512,23 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton<IEmailService, FakeEmailService>();
         });
 
+        // Override JWT validation to use the same test signing key
+        builder.ConfigureServices(services =>
+        {
+            services.PostConfigure<JwtBearerOptions>(
+                JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            "test-signing-key-at-least-32-chars!"u8.ToArray())
+                    };
+                });
+        });
+
         builder.UseEnvironment("Testing");
     }
 
