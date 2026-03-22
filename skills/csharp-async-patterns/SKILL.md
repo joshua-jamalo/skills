@@ -376,12 +376,6 @@ var enriched = validated
 ### SemaphoreSlim
 
 ```csharp
-public sealed class ThrottledApiClient(HttpClient httpClient)
-{
-    private readonly SemaphoreSlim _semaphore = new(initialCount: 10, maxCount: 10);
-
-    public async Task<T> GetAsync<T>(string url, CancellationToken ct)
-    {
 public sealed class ThrottledApiClient(HttpClient httpClient) : IDisposable
 {
     private readonly SemaphoreSlim _semaphore = new(initialCount: 10, maxCount: 10);
@@ -402,6 +396,11 @@ public sealed class ThrottledApiClient(HttpClient httpClient) : IDisposable
 
     public void Dispose() => _semaphore.Dispose();
 }
+```
+
+### Parallel.ForEachAsync
+
+```csharp
 await Parallel.ForEachAsync(
     orderIds,
     new ParallelOptions
