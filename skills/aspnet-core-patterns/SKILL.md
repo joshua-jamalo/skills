@@ -411,20 +411,31 @@ public sealed class IdempotencyMiddleware(
 
         if (cachedResponse is not null)
         {
-            if (JsonSerializer.Deserialize<CachedIdempotentResponse>(cachedResponse) is not { } cached)
+            CachedIdempotentResponse? cached = null;
+
+            try
             {
-                await cache.RemoveAsync(cacheKey);
-                await next(context);
-                return;
+                cached = JsonSerializer.Deserialize<CachedIdempotentResponse>(cachedResponse);
+            }
+            catch (JsonException)
+            {
+                // Treat malformed cache entries as misses and rebuild them below.
             }
 
-            context.Response.StatusCode = cached.StatusCode;
-            context.Response.ContentType =
-                string.IsNullOrWhiteSpace(cached.ContentType)
-                    ? "application/json"
-                    : cached.ContentType;
-            await context.Response.WriteAsync(cached.Body);
-            return;
+            if (cached is null)
+            {
+                await cache.RemoveAsync(cacheKey);
+            }
+            else
+            {
+                context.Response.StatusCode = cached.StatusCode;
+                context.Response.ContentType =
+                    string.IsNullOrWhiteSpace(cached.ContentType)
+                        ? "application/json"
+                        : cached.ContentType;
+                await context.Response.WriteAsync(cached.Body);
+                return;
+            }
         }
 
         var originalBody = context.Response.Body;
