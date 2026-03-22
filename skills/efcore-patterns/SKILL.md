@@ -285,16 +285,26 @@ public sealed class AppDbContext(
 var keyRingPath = builder.Configuration["DataProtection:KeyRingPath"]
     ?? throw new InvalidOperationException(
         "DataProtection:KeyRingPath must point to a durable key-ring location.");
-var keyEncryptionCertificateThumbprint =
-    builder.Configuration["DataProtection:KeyEncryptionCertificateThumbprint"]
-        ?? throw new InvalidOperationException(
-            "DataProtection:KeyEncryptionCertificateThumbprint is required to protect keys at rest.");
 
-builder.Services
+var dataProtectionBuilder = builder.Services
     .AddDataProtection()
     .SetApplicationName("MyApp") // ensures all instances share the same key ring
-    .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath))
-    .ProtectKeysWithCertificate(keyEncryptionCertificateThumbprint);
+    .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
+
+var keyEncryptionCertificatePath =
+    builder.Configuration["DataProtection:KeyEncryptionCertificatePath"];
+var keyEncryptionCertificatePassword =
+    builder.Configuration["DataProtection:KeyEncryptionCertificatePassword"];
+
+if (!string.IsNullOrWhiteSpace(keyEncryptionCertificatePath))
+{
+    var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+        keyEncryptionCertificatePath,
+        keyEncryptionCertificatePassword);
+    dataProtectionBuilder.ProtectKeysWithCertificate(certificate);
+}
+
+// In production, protect keys at rest with a certificate or managed KMS.
 
 // If you prefer EF-backed key storage, use a separate MyKeysContext that
 // implements IDataProtectionKeyContext rather than reusing AppDbContext.
