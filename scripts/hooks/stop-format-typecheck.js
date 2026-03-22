@@ -32,6 +32,11 @@ const TOTAL_BUDGET_MS = 270_000;
 // Includes spaces and parentheses to guard paths like "C:\Users\John Doe\...".
 const UNSAFE_PATH_CHARS = /[&|<>^%!\s()]/;
 
+/** Parse the accumulator text into a deduplicated array of file paths. */
+function parseAccumulator(raw) {
+  return [...new Set(raw.split('\n').map(l => l.trim()).filter(Boolean))];
+}
+
 function getAccumFile() {
   const raw =
     process.env.CLAUDE_SESSION_ID ||
@@ -140,7 +145,7 @@ function main() {
 
   try { fs.unlinkSync(accumFile); } catch { /* best-effort */ }
 
-  const files = [...new Set(raw.split('\n').map(l => l.trim()).filter(Boolean))];
+  const files = parseAccumulator(raw);
   if (files.length === 0) return;
 
   const byProjectRoot = new Map();
@@ -201,4 +206,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, parseAccumulator };

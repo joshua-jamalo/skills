@@ -229,11 +229,10 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/run-with-flags.js\" \"stop:format-typecheck\" \"scripts/hooks/stop-format-typecheck.js\" \"standard,strict\"",
-            "timeout": 120
+            "timeout": 300
           }
         ],
-        "description": "Batch format (Biome/Prettier) and typecheck (tsc) all JS/TS files edited this response — runs once at Stop instead of after every Edit",
-        "timeout": 300
+        "description": "Batch format (Biome/Prettier) and typecheck (tsc) all JS/TS files edited this response — runs once at Stop instead of after every Edit"
       },
       {
         "matcher": "*",

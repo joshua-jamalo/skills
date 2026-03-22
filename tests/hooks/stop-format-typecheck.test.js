@@ -13,6 +13,7 @@ const os = require('os');
 const path = require('path');
 
 const accumulator = require('../../scripts/hooks/post-edit-accumulator');
+const { parseAccumulator } = require('../../scripts/hooks/stop-format-typecheck');
 
 function test(name, fn) {
   try {
@@ -190,9 +191,20 @@ if (test('stop hook is a no-op when no accumulator exists', () => {
   });
 })) passed++; else failed++;
 
-if (test('stop hook deduplicates repeated paths and clears accumulator', () => {
+if (test('parseAccumulator deduplicates repeated paths', () => {
+  const raw = '/tmp/a.ts\n/tmp/b.ts\n/tmp/a.ts\n/tmp/a.ts\n/tmp/c.js\n';
+  const result = parseAccumulator(raw);
+  assert.deepStrictEqual(result, ['/tmp/a.ts', '/tmp/b.ts', '/tmp/c.js']);
+})) passed++; else failed++;
+
+if (test('parseAccumulator ignores blank lines and trims whitespace', () => {
+  const raw = '  /tmp/a.ts  \n\n/tmp/b.ts\n\n';
+  const result = parseAccumulator(raw);
+  assert.deepStrictEqual(result, ['/tmp/a.ts', '/tmp/b.ts']);
+})) passed++; else failed++;
+
+if (test('stop hook clears accumulator after processing duplicates', () => {
   cleanAccumFile();
-  // Write duplicates — same path three times
   fs.writeFileSync(getAccumFile(), '/nonexistent/x.ts\n/nonexistent/x.ts\n/nonexistent/y.ts\n', 'utf8');
   const { execFileSync } = require('child_process');
   const stopScript = path.resolve(__dirname, '../../scripts/hooks/stop-format-typecheck.js');
@@ -204,7 +216,6 @@ if (test('stop hook deduplicates repeated paths and clears accumulator', () => {
       timeout: 10000
     });
   } catch { /* formatter/tsc may fail for nonexistent files */ }
-  // Accumulator must be cleared regardless of dedup outcome
   assert.ok(!fs.existsSync(getAccumFile()), 'accumulator cleared after stop hook');
 })) passed++; else failed++;
 
