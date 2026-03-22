@@ -222,6 +222,7 @@ public sealed class DiskSpaceHealthCheck : IHealthCheck
 // Map health check endpoints
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
+    // Requires: <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.*" />
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
@@ -533,6 +534,7 @@ public sealed class OrderNotificationService(IHubContext<NotificationHub> hubCon
 ## API Versioning
 
 ```csharp
+// Requires: <PackageReference Include="Asp.Versioning.Http" Version="8.*" />
 builder.Services.AddApiVersioning(options =>
 {
     options.DefaultApiVersion = new ApiVersion(1, 0);
@@ -543,14 +545,19 @@ builder.Services.AddApiVersioning(options =>
         new HeaderApiVersionReader("X-Api-Version"));
 });
 
-var v1 = app.NewApiVersionSet().HasApiVersion(new ApiVersion(1, 0)).Build();
-var v2 = app.NewApiVersionSet().HasApiVersion(new ApiVersion(2, 0)).Build();
+// Use a SINGLE version set containing all versions to avoid ambiguous route matches.
+var versionSet = app.NewApiVersionSet()
+    .HasApiVersion(new ApiVersion(1, 0))
+    .HasApiVersion(new ApiVersion(2, 0))
+    .Build();
 
 app.MapGet("/api/v{version:apiVersion}/orders", GetOrdersV1)
-    .WithApiVersionSet(v1);
+    .WithApiVersionSet(versionSet)
+    .MapToApiVersion(new ApiVersion(1, 0));
 
 app.MapGet("/api/v{version:apiVersion}/orders", GetOrdersV2)
-    .WithApiVersionSet(v2);
+    .WithApiVersionSet(versionSet)
+    .MapToApiVersion(new ApiVersion(2, 0));
 ```
 
 ## Problem Details (RFC 9457)
