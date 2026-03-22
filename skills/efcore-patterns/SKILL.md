@@ -279,6 +279,12 @@ public sealed class AppDbContext(
         });
     }
 }
+
+// Registration — AddDataProtection is required for IDataProtectionProvider
+builder.Services.AddDataProtection();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(connectionString));
 ```
 
 ## Concurrency Control
