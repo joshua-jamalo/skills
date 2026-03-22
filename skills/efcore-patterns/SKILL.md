@@ -280,8 +280,11 @@ public sealed class AppDbContext(
     }
 }
 
-// Registration — AddDataProtection is required for IDataProtectionProvider
-builder.Services.AddDataProtection();
+// Registration — AddDataProtection with a durable key ring is required
+// so encrypted columns survive restarts and scale-out.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()          // or PersistKeysToFileSystem / PersistKeysToAzureBlobStorage
+    .SetApplicationName("MyApp");                    // ensures all instances share the same key ring
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
