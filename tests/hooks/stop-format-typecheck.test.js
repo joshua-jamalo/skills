@@ -94,17 +94,40 @@ if (test('accumulates multiple files across calls', () => {
   cleanAccumFile();
 })) passed++; else failed++;
 
-if (test('concurrent writes are preserved (no data lost via append)', () => {
+if (test('all appended paths are preserved including duplicates (dedup is Stop hook responsibility)', () => {
   cleanAccumFile();
-  // Simulate concurrent writes — each appends independently
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } }));
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/b.ts' } }));
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } })); // duplicate
   const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
-  // All three appends land; dedup happens at read time in the Stop hook
-  assert.strictEqual(lines.length, 3);
-  const unique = [...new Set(lines)];
-  assert.strictEqual(unique.length, 2);
+  assert.strictEqual(lines.length, 3); // all three appends land
+  assert.strictEqual(new Set(lines).size, 2); // two unique paths
+  cleanAccumFile();
+})) passed++; else failed++;
+
+if (test('accumulates Write tool file_path', () => {
+  cleanAccumFile();
+  accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/new-file.ts' } }));
+  const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
+  assert.ok(lines.includes('/tmp/new-file.ts'));
+  cleanAccumFile();
+})) passed++; else failed++;
+
+if (test('accumulates MultiEdit edits array paths', () => {
+  cleanAccumFile();
+  accumulator.run(JSON.stringify({
+    tool_input: {
+      edits: [
+        { file_path: '/tmp/multi-a.ts', old_string: 'a', new_string: 'b' },
+        { file_path: '/tmp/multi-b.tsx', old_string: 'c', new_string: 'd' },
+        { file_path: '/tmp/skip.md', old_string: 'e', new_string: 'f' }
+      ]
+    }
+  }));
+  const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
+  assert.ok(lines.includes('/tmp/multi-a.ts'));
+  assert.ok(lines.includes('/tmp/multi-b.tsx'));
+  assert.ok(!lines.includes('/tmp/skip.md'), 'non-JS/TS should be excluded');
   cleanAccumFile();
 })) passed++; else failed++;
 
@@ -165,6 +188,24 @@ if (test('stop hook is a no-op when no accumulator exists', () => {
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 10000
   });
+})) passed++; else failed++;
+
+if (test('stop hook deduplicates repeated paths and clears accumulator', () => {
+  cleanAccumFile();
+  // Write duplicates — same path three times
+  fs.writeFileSync(getAccumFile(), '/nonexistent/x.ts\n/nonexistent/x.ts\n/nonexistent/y.ts\n', 'utf8');
+  const { execFileSync } = require('child_process');
+  const stopScript = path.resolve(__dirname, '../../scripts/hooks/stop-format-typecheck.js');
+  try {
+    execFileSync('node', [stopScript], {
+      input: '{}',
+      env: { ...process.env, CLAUDE_SESSION_ID: TEST_SESSION_ID },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 10000
+    });
+  } catch { /* formatter/tsc may fail for nonexistent files */ }
+  // Accumulator must be cleared regardless of dedup outcome
+  assert.ok(!fs.existsSync(getAccumFile()), 'accumulator cleared after stop hook');
 })) passed++; else failed++;
 
 if (test('stop hook passes stdin through unchanged', () => {

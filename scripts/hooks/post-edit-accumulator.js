@@ -8,7 +8,7 @@
  * line). stop-format-typecheck.js reads this list at Stop time and runs format
  * + typecheck once across all edited files, eliminating per-edit latency.
  *
- * appendFileSync is used so concurrent Edit hook processes write atomically
+ * appendFileSync is used so concurrent hook processes write atomically
  * without overwriting each other. Deduplication is deferred to the Stop hook.
  */
 
@@ -35,12 +35,27 @@ function getAccumFile() {
  * @param {string} rawInput - Raw JSON string from stdin
  * @returns {string} The original input (pass-through)
  */
+const JS_TS_EXT = /\.(ts|tsx|js|jsx)$/;
+
+function appendPath(filePath) {
+  if (filePath && JS_TS_EXT.test(filePath)) {
+    fs.appendFileSync(getAccumFile(), filePath + '\n', 'utf8');
+  }
+}
+
+/**
+ * @param {string} rawInput - Raw JSON string from stdin
+ * @returns {string} The original input (pass-through)
+ */
 function run(rawInput) {
   try {
     const input = JSON.parse(rawInput);
-    const filePath = input.tool_input?.file_path;
-    if (filePath && /\.(ts|tsx|js|jsx)$/.test(filePath)) {
-      fs.appendFileSync(getAccumFile(), filePath + '\n', 'utf8');
+    // Edit / Write: single file_path
+    appendPath(input.tool_input?.file_path);
+    // MultiEdit: array of edits, each with its own file_path
+    const edits = input.tool_input?.edits;
+    if (Array.isArray(edits)) {
+      for (const edit of edits) appendPath(edit?.file_path);
     }
   } catch {
     // Invalid input — pass through
