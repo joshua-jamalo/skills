@@ -494,19 +494,25 @@ public sealed class OrderApiTests(WebApplicationFactory<Program> factory)
 ```csharp
 public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string _dbName = $"TestDb-{Guid.NewGuid()}";
+    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+
+    public CustomWebApplicationFactory()
+    {
+        _connection.Open();
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
-            // Replace real database with in-memory (unique per factory instance)
+            // Replace the real database with SQLite in-memory so tests keep
+            // relational behavior while staying fast.
             var descriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
             if (descriptor is not null) services.Remove(descriptor);
 
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase(_dbName));
+                options.UseSqlite(_connection));
 
             // Replace external services with fakes
             services.AddSingleton<IEmailService, FakeEmailService>();
@@ -548,6 +554,12 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             fakeEmail.SentEmails.Clear();
         }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await _connection.DisposeAsync();
+        await base.DisposeAsync();
     }
 }
 
@@ -620,21 +632,26 @@ public sealed class AuthenticatedApiTests(CustomWebApplicationFactory factory)
 
 ## Testing EF Core
 
-### In-Memory Database Tests
+### SQLite In-Memory Database Tests
 
 ```csharp
 public sealed class OrderRepositoryTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly AppDbContext _context;
     private readonly OrderRepository _repository;
 
     public OrderRepositoryTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _context = new AppDbContext(options);
+        _context.Database.EnsureCreated();
         _repository = new OrderRepository(_context);
     }
 
@@ -670,7 +687,11 @@ public sealed class OrderRepositoryTests : IDisposable
         results.Should().OnlyContain(o => o.CustomerId == customerId);
     }
 
-    public void Dispose() => _context.Dispose();
+    public void Dispose()
+    {
+        _context.Dispose();
+        _connection.Dispose();
+    }
 }
 ```
 
@@ -793,19 +814,26 @@ public sealed class DatabaseCollection : ICollectionFixture<DatabaseFixture>;
 
 public sealed class DatabaseFixture : IAsyncLifetime
 {
+    private SqliteConnection _connection = null!;
     public AppDbContext Context { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        await _connection.OpenAsync();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase("SharedTestDb")
+            .UseSqlite(_connection)
             .Options;
         Context = new AppDbContext(options);
-        await Context.Database.EnsureDeletedAsync(); // clear state from previous run
         await Context.Database.EnsureCreatedAsync();
     }
 
-    public async Task DisposeAsync() => await Context.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await Context.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
 }
 
 [Collection("Database")]
@@ -1058,6 +1086,15 @@ tests/
 </Project>
 ```
 
+```xml
+<!-- MyApp.Tests.Integration.csproj additions -->
+<ItemGroup>
+  <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.*" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.*" />
+  <PackageReference Include="Testcontainers.PostgreSql" Version="4.*" />
+</ItemGroup>
+```
+
 ## Best Practices
 
 ### DO
@@ -1079,6 +1116,7 @@ tests/
 - **Skip the RED phase** — always verify the test fails first
 - **Test private methods directly** — test through public API
 - **Use `Thread.Sleep`** in tests — use async patterns or `TaskCompletionSource`
+- **Use EF Core `UseInMemoryDatabase`** for relational behavior tests — prefer SQLite in-memory or Testcontainers
 - **Ignore flaky tests** — fix or quarantine immediately
 - **Mock what you don't own** — wrap external libraries behind interfaces
 - **Share state between tests** — each test should set up its own data

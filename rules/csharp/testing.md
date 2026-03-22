@@ -64,7 +64,8 @@ public void IsValidEmail_VariousInputs_ReturnsExpected(string input, bool expect
 
 - Use `WebApplicationFactory<TEntryPoint>` for API integration coverage
 - Test auth, validation, and serialization through HTTP, not by bypassing middleware
-- Override services with in-memory databases and fakes in `ConfigureWebHost`
+- Prefer SQLite in-memory or Testcontainers for EF Core-backed integration tests
+- Override external services with fakes in `ConfigureWebHost`
 
 ```csharp
 public sealed class OrderApiTests(WebApplicationFactory<Program> factory)

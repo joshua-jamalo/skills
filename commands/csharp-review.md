@@ -55,7 +55,7 @@ dotnet build
 dotnet format --verify-no-changes
 
 # Tests
-dotnet test
+dotnet test --no-build
 ```
 
 ## Example Usage

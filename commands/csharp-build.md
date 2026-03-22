@@ -114,7 +114,7 @@ $ dotnet build
 $ dotnet format --verify-no-changes
 # No issues
 
-$ dotnet test
+$ dotnet test --no-build
 # All tests passed
 ```
 
