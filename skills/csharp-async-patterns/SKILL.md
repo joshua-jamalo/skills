@@ -382,6 +382,12 @@ public sealed class ThrottledApiClient(HttpClient httpClient)
 
     public async Task<T> GetAsync<T>(string url, CancellationToken ct)
     {
+public sealed class ThrottledApiClient(HttpClient httpClient) : IDisposable
+{
+    private readonly SemaphoreSlim _semaphore = new(initialCount: 10, maxCount: 10);
+
+    public async Task<T> GetAsync<T>(string url, CancellationToken ct)
+    {
         await _semaphore.WaitAsync(ct);
         try
         {
@@ -393,13 +399,9 @@ public sealed class ThrottledApiClient(HttpClient httpClient)
             _semaphore.Release();
         }
     }
+
+    public void Dispose() => _semaphore.Dispose();
 }
-```
-
-### Parallel.ForEachAsync
-
-```csharp
-// Process items with controlled parallelism
 await Parallel.ForEachAsync(
     orderIds,
     new ParallelOptions
