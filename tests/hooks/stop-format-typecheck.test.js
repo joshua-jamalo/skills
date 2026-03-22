@@ -35,7 +35,7 @@ const origSessionId = process.env.CLAUDE_SESSION_ID;
 process.env.CLAUDE_SESSION_ID = TEST_SESSION_ID;
 
 function getAccumFile() {
-  return path.join(os.tmpdir(), `ecc-edited-${TEST_SESSION_ID}.json`);
+  return path.join(os.tmpdir(), `ecc-edited-${TEST_SESSION_ID}.txt`);
 }
 
 function cleanAccumFile() {
@@ -79,8 +79,8 @@ if (test('creates accumulator file for a .ts file', () => {
   accumulator.run(input);
   const accumFile = getAccumFile();
   assert.ok(fs.existsSync(accumFile), 'accumulator file should exist');
-  const files = JSON.parse(fs.readFileSync(accumFile, 'utf8'));
-  assert.ok(files.includes('/tmp/foo.ts'));
+  const lines = fs.readFileSync(accumFile, 'utf8').split('\n').filter(Boolean);
+  assert.ok(lines.includes('/tmp/foo.ts'));
   cleanAccumFile();
 })) passed++; else failed++;
 
@@ -89,18 +89,22 @@ if (test('accumulates multiple files across calls', () => {
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } }));
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/b.tsx' } }));
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/c.js' } }));
-  const files = JSON.parse(fs.readFileSync(getAccumFile(), 'utf8'));
-  assert.deepStrictEqual(files, ['/tmp/a.ts', '/tmp/b.tsx', '/tmp/c.js']);
+  const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
+  assert.deepStrictEqual(lines, ['/tmp/a.ts', '/tmp/b.tsx', '/tmp/c.js']);
   cleanAccumFile();
 })) passed++; else failed++;
 
-if (test('deduplicates repeated edits to the same file', () => {
+if (test('concurrent writes are preserved (no data lost via append)', () => {
   cleanAccumFile();
+  // Simulate concurrent writes — each appends independently
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } }));
-  accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } }));
-  accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } }));
-  const files = JSON.parse(fs.readFileSync(getAccumFile(), 'utf8'));
-  assert.strictEqual(files.length, 1);
+  accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/b.ts' } }));
+  accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/a.ts' } })); // duplicate
+  const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
+  // All three appends land; dedup happens at read time in the Stop hook
+  assert.strictEqual(lines.length, 3);
+  const unique = [...new Set(lines)];
+  assert.strictEqual(unique.length, 2);
   cleanAccumFile();
 })) passed++; else failed++;
 
@@ -115,9 +119,9 @@ if (test('handles .tsx and .jsx extensions', () => {
   cleanAccumFile();
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/comp.tsx' } }));
   accumulator.run(JSON.stringify({ tool_input: { file_path: '/tmp/comp.jsx' } }));
-  const files = JSON.parse(fs.readFileSync(getAccumFile(), 'utf8'));
-  assert.ok(files.includes('/tmp/comp.tsx'));
-  assert.ok(files.includes('/tmp/comp.jsx'));
+  const lines = fs.readFileSync(getAccumFile(), 'utf8').split('\n').filter(Boolean);
+  assert.ok(lines.includes('/tmp/comp.tsx'));
+  assert.ok(lines.includes('/tmp/comp.jsx'));
   cleanAccumFile();
 })) passed++; else failed++;
 
@@ -129,7 +133,7 @@ console.log('==========================================\n');
 if (test('stop hook removes accumulator file after reading it', () => {
   cleanAccumFile();
   // Write a fake accumulator with a non-existent file so no real formatter runs
-  fs.writeFileSync(getAccumFile(), JSON.stringify(['/nonexistent/file.ts']), 'utf8');
+  fs.writeFileSync(getAccumFile(), '/nonexistent/file.ts\n', 'utf8');
   assert.ok(fs.existsSync(getAccumFile()), 'accumulator should exist before stop hook');
 
   // Require the stop hook and invoke main() directly via its stdin entry.

@@ -23,11 +23,17 @@ const MAX_STDIN = 1024 * 1024;
 
 function getAccumFile() {
   const sessionId = process.env.CLAUDE_SESSION_ID || 'default';
-  return path.join(os.tmpdir(), `ecc-edited-${sessionId}.json`);
+  return path.join(os.tmpdir(), `ecc-edited-${sessionId}.txt`);
 }
 
 /**
- * Append file_path to the session accumulator (deduped).
+ * Append file_path to the session accumulator (one path per line).
+ *
+ * Using appendFileSync makes each write atomic at the OS level, so
+ * concurrent hook processes (from parallel Edit calls) cannot race and
+ * overwrite each other's entries. Deduplication is deferred to the Stop
+ * hook when it reads the full list.
+ *
  * Exported so run-with-flags.js can call directly without spawning a child.
  *
  * @param {string} rawInput - Raw JSON string from stdin
@@ -39,17 +45,8 @@ function run(rawInput) {
     const filePath = input.tool_input?.file_path;
 
     if (filePath && /\.(ts|tsx|js|jsx)$/.test(filePath)) {
-      const accumFile = getAccumFile();
-      let files = [];
-      try {
-        files = JSON.parse(fs.readFileSync(accumFile, 'utf8'));
-      } catch {
-        // First edit of this response — start fresh
-      }
-      if (!files.includes(filePath)) {
-        files.push(filePath);
-        fs.writeFileSync(accumFile, JSON.stringify(files), 'utf8');
-      }
+      // appendFileSync is atomic for small writes — safe under concurrency
+      fs.appendFileSync(getAccumFile(), filePath + '\n', 'utf8');
     }
   } catch {
     // Invalid input — pass through

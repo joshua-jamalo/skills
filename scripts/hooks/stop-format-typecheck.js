@@ -34,12 +34,14 @@ const { findProjectRoot, detectFormatter, resolveFormatterBin } = require('../li
 
 const MAX_STDIN = 1024 * 1024;
 
-// Shell metacharacters that cmd.exe interprets as command separators/operators
-const UNSAFE_PATH_CHARS = /[&|<>^%!]/;
+// Characters that cmd.exe interprets as command separators, operators, or
+// word breaks when shell: true is used. Includes spaces and parentheses
+// which can break paths like "C:\Users\John Doe\project\file.ts".
+const UNSAFE_PATH_CHARS = /[&|<>^%!\s()]/;
 
 function getAccumFile() {
   const sessionId = process.env.CLAUDE_SESSION_ID || 'default';
-  return path.join(os.tmpdir(), `ecc-edited-${sessionId}.json`);
+  return path.join(os.tmpdir(), `ecc-edited-${sessionId}.txt`);
 }
 
 /**
@@ -158,9 +160,9 @@ function typecheckBatch(tsConfigDir, editedFiles) {
 function main() {
   const accumFile = getAccumFile();
 
-  let files;
+  let raw;
   try {
-    files = JSON.parse(fs.readFileSync(accumFile, 'utf8'));
+    raw = fs.readFileSync(accumFile, 'utf8');
   } catch {
     // No accumulator — nothing was edited this response, nothing to do
     return;
@@ -173,7 +175,10 @@ function main() {
     // Best-effort
   }
 
-  if (!Array.isArray(files) || files.length === 0) return;
+  // Deduplicate here (accumulator writes one path per line, possibly with
+  // duplicates from rapid concurrent Edit calls)
+  const files = [...new Set(raw.split('\n').map(l => l.trim()).filter(Boolean))];
+  if (files.length === 0) return;
 
   // ── Format: group by project root ──────────────────────────────
   const byProjectRoot = new Map();
@@ -207,22 +212,40 @@ function main() {
   }
 }
 
-// ── stdin entry point ────────────────────────────────────────────
-let stdinData = '';
-process.stdin.setEncoding('utf8');
-
-process.stdin.on('data', chunk => {
-  if (stdinData.length < MAX_STDIN) {
-    stdinData += chunk.substring(0, MAX_STDIN - stdinData.length);
-  }
-});
-
-process.stdin.on('end', () => {
+/**
+ * Core entry point — exported so run-with-flags.js can require() this module
+ * directly instead of spawning a child process. This bypasses the hardcoded
+ * 30-second timeout in run-with-flags.js's legacy spawnSync path and lets the
+ * 120-second hooks.json timeout govern the full batch instead.
+ *
+ * @param {string} rawInput - Raw JSON string from stdin (Stop event payload)
+ * @returns {string} The original input (pass-through)
+ */
+function run(rawInput) {
   try {
     main();
   } catch (err) {
     process.stderr.write(`[Hook] stop-format-typecheck error: ${err.message}\n`);
   }
-  process.stdout.write(stdinData);
-  process.exit(0);
-});
+  return rawInput;
+}
+
+// ── stdin entry point (backwards-compatible) ─────────────────────
+if (require.main === module) {
+  let stdinData = '';
+  process.stdin.setEncoding('utf8');
+
+  process.stdin.on('data', chunk => {
+    if (stdinData.length < MAX_STDIN) {
+      stdinData += chunk.substring(0, MAX_STDIN - stdinData.length);
+    }
+  });
+
+  process.stdin.on('end', () => {
+    stdinData = run(stdinData);
+    process.stdout.write(stdinData);
+    process.exit(0);
+  });
+}
+
+module.exports = { run };
