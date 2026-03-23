@@ -14,6 +14,7 @@
  */
 
 import type { PluginInput } from "@opencode-ai/plugin"
+import { postSessionWebhookWithTimeout, validateSessionWebhookUrl } from "./session-completion.js"
 
 export const ECCHooksPlugin = async ({
   client,
@@ -23,12 +24,19 @@ export const ECCHooksPlugin = async ({
 }: PluginInput) => {
   type HookProfile = "minimal" | "standard" | "strict"
 
-  // Track files edited in current session for console.log audit
   const editedFiles = new Set<string>()
+  let sessionStartTime = 0
+  let sessionWarnings: string[] = []
+  let testRunCount = 0
 
-  // Helper to call the SDK's log API with correct signature
-  const log = (level: "debug" | "info" | "warn" | "error", message: string) =>
+  const log = (level: "debug" | "info" | "warn" | "error", message: string) => {
     client.app.log({ body: { service: "ecc", level, message } })
+  }
+
+  const warnSession = (message: string) => {
+    sessionWarnings = [...sessionWarnings, message]
+    log("warn", message)
+  }
 
   const normalizeProfile = (value: string | undefined): HookProfile => {
     if (value === "minimal" || value === "strict") return value
@@ -92,8 +100,7 @@ export const ECCHooksPlugin = async ({
           const result = await $`grep -n "console\\.log" ${event.path} 2>/dev/null`.text()
           if (result.trim()) {
             const lines = result.trim().split("\n").length
-            log(
-              "warn",
+            warnSession(
               `[ECC] console.log found in ${event.path} (${lines} occurrence${lines > 1 ? "s" : ""})`
             )
           }
@@ -125,16 +132,14 @@ export const ECCHooksPlugin = async ({
           log("info", "[ECC] TypeScript check passed")
         } catch (error: unknown) {
           const err = error as { stdout?: string }
-          log("warn", "[ECC] TypeScript errors detected:")
+          warnSession("[ECC] TypeScript errors detected:")
           if (err.stdout) {
-            // Log first few errors
             const errors = err.stdout.split("\n").slice(0, 5)
-            errors.forEach((line: string) => log("warn", `  ${line}`))
+            errors.forEach((line: string) => warnSession(`  ${line}`))
           }
         }
       }
 
-      // PR creation logging
       if (
         hookEnabled("post:bash:pr-created", ["standard", "strict"]) &&
         input.tool === "bash" &&
@@ -142,6 +147,13 @@ export const ECCHooksPlugin = async ({
       ) {
         log("info", "[ECC] PR created - check GitHub Actions status")
       }
+
+      const bashCmd = input.tool === "bash" ? String((input.args as Record<string, unknown>)?.command ?? "") : ""
+      const isTestRun =
+        input.tool === "run-tests" ||
+        (input.tool === "bash" &&
+          /^(npm|pnpm|yarn|bun)\s+(test|run\s+test)|npx\s+(vitest|jest|mocha)|pytest|go\s+test|cargo\s+test/.test(bashCmd))
+      if (isTestRun) testRunCount++
     },
 
     /**
@@ -181,8 +193,7 @@ export const ECCHooksPlugin = async ({
           !filePath.includes("LICENSE") &&
           !filePath.includes("CONTRIBUTING")
         ) {
-          log(
-            "warn",
+          warnSession(
             `[ECC] Creating ${filePath} - consider if this documentation is necessary`
           )
         }
@@ -212,6 +223,7 @@ export const ECCHooksPlugin = async ({
      * Action: Loads context and displays welcome message
      */
     "session.created": async () => {
+      sessionStartTime = Date.now()
       if (!hookEnabled("session:start", ["minimal", "standard", "strict"])) return
 
       log("info", `[ECC] Session started - profile=${currentProfile}`)
@@ -232,54 +244,108 @@ export const ECCHooksPlugin = async ({
      * Equivalent to Claude Code Stop hook
      *
      * Triggers: When session becomes idle (task completed)
-     * Action: Runs console.log audit on all edited files
+     * Action: Console.log audit on edited files, then session completion summary
      */
     "session.idle": async () => {
-      if (!hookEnabled("stop:check-console-log", ["minimal", "standard", "strict"])) return
-      if (editedFiles.size === 0) return
+      if (hookEnabled("stop:check-console-log", ["minimal", "standard", "strict"]) && editedFiles.size > 0) {
+        log("info", "[ECC] Session idle - running console.log audit")
 
-      log("info", "[ECC] Session idle - running console.log audit")
+        let totalConsoleLogCount = 0
+        const filesWithConsoleLogs: string[] = []
 
-      let totalConsoleLogCount = 0
-      const filesWithConsoleLogs: string[] = []
+        for (const file of editedFiles) {
+          if (!file.match(/\.(ts|tsx|js|jsx)$/)) continue
 
-      for (const file of editedFiles) {
-        if (!file.match(/\.(ts|tsx|js|jsx)$/)) continue
-
-        try {
-          const result = await $`grep -c "console\\.log" ${file} 2>/dev/null`.text()
-          const count = parseInt(result.trim(), 10)
-          if (count > 0) {
-            totalConsoleLogCount += count
-            filesWithConsoleLogs.push(file)
+          try {
+            const result = await $`grep -c "console\\.log" ${file} 2>/dev/null`.text()
+            const count = parseInt(result.trim(), 10)
+            if (count > 0) {
+              totalConsoleLogCount += count
+              filesWithConsoleLogs.push(file)
+            }
+          } catch {
+            // No console.log found
           }
-        } catch {
-          // No console.log found
+        }
+
+        if (totalConsoleLogCount > 0) {
+          warnSession(
+            `[ECC] Audit: ${totalConsoleLogCount} console.log statement(s) in ${filesWithConsoleLogs.length} file(s)`
+          )
+          filesWithConsoleLogs.forEach((f) => warnSession(`  - ${f}`))
+          warnSession("[ECC] Remove console.log statements before committing")
+        } else {
+          log("info", "[ECC] Audit passed: No console.log statements found")
         }
       }
 
-      if (totalConsoleLogCount > 0) {
-        log(
-          "warn",
-          `[ECC] Audit: ${totalConsoleLogCount} console.log statement(s) in ${filesWithConsoleLogs.length} file(s)`
-        )
-        filesWithConsoleLogs.forEach((f) =>
-          log("warn", `  - ${f}`)
-        )
-        log("warn", "[ECC] Remove console.log statements before committing")
-      } else {
-        log("info", "[ECC] Audit passed: No console.log statements found")
+      if (hookEnabled("session:completion-summary", ["minimal", "standard", "strict"])) {
+        const durationMs = sessionStartTime > 0 ? Date.now() - sessionStartTime : 0
+        const durationSec = Math.round(durationMs / 1000)
+        const summary = {
+          filesChanged: editedFiles.size,
+          files: [...editedFiles],
+          testsRun: testRunCount,
+          durationSec,
+          warnings: [...sessionWarnings],
+        }
+        const mode = (process.env.ECC_SESSION_COMPLETION_MODE || "desktop").toLowerCase()
+        const webhookUrl = process.env.ECC_SESSION_WEBHOOK_URL
+
+        const brief = `Files: ${summary.filesChanged}, Tests: ${summary.testsRun}, ${durationSec}s${
+          summary.warnings.length > 0 ? `, ${summary.warnings.length} warning(s)` : ""
+        }`
+
+        if (mode === "desktop" || mode === "all") {
+          try {
+            const title = "ECC Session Complete"
+            const safeBody = brief.replace(/"/g, '\\"')
+            if (process.platform === "darwin") {
+              await $`osascript -e 'display notification "${safeBody}" with title "${title}"' 2>/dev/null`
+            } else if (process.platform === "linux") {
+              await $`notify-send "${title}" "${safeBody}" 2>/dev/null`
+            }
+          } catch {
+            // Desktop notification not available
+          }
+        }
+
+        if (mode === "webhook" || mode === "all") {
+          const validatedUrl = validateSessionWebhookUrl(webhookUrl)
+          if (webhookUrl && !validatedUrl) {
+            log("warn", "[ECC] ECC_SESSION_WEBHOOK_URL is invalid (use http or https, no credentials in URL)")
+          } else if (validatedUrl) {
+            const timeoutMs = Math.min(
+              120_000,
+              Math.max(1_000, Number.parseInt(process.env.ECC_SESSION_WEBHOOK_TIMEOUT_MS || "10000", 10) || 10_000)
+            )
+            const result = await postSessionWebhookWithTimeout(validatedUrl, summary, timeoutMs)
+            if (!result.ok) {
+              log("warn", `[ECC] Session webhook failed: ${result.error}`)
+            } else if (result.status >= 400) {
+              log("warn", `[ECC] Session webhook returned HTTP ${result.status}`)
+            }
+          } else if (mode === "webhook") {
+            log("warn", "[ECC] ECC_SESSION_WEBHOOK_URL is not set")
+          }
+        }
+
+        if (mode === "tui" || mode === "all") {
+          try {
+            await client.tui.showToast({
+              body: { message: brief, variant: summary.warnings.length > 0 ? "warning" : "success" },
+            })
+          } catch {
+            log("info", `[ECC] Session complete: ${brief}`)
+          }
+        }
+
+        log("info", `[ECC] Session complete: ${brief}`)
       }
 
-      // Desktop notification (macOS)
-      try {
-        await $`osascript -e 'display notification "Task completed!" with title "OpenCode ECC"' 2>/dev/null`
-      } catch {
-        // Notification not supported or failed
-      }
-
-      // Clear tracked files for next task
       editedFiles.clear()
+      sessionWarnings = []
+      testRunCount = 0
     },
 
     /**
@@ -293,6 +359,8 @@ export const ECCHooksPlugin = async ({
       if (!hookEnabled("session:end-marker", ["minimal", "standard", "strict"])) return
       log("info", "[ECC] Session ended - cleaning up")
       editedFiles.clear()
+      sessionWarnings = []
+      testRunCount = 0
     },
 
     /**
