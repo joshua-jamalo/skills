@@ -212,7 +212,7 @@ For manual install instructions see the README in the `rules/` folder.
 /plugin list everything-claude-code@everything-claude-code
 ```
 
-✨ **That's it!** You now have access to 28 agents, 119 skills, and 60 commands.
+✨ **That's it!** You now have access to 28 agents, 120 skills, and 60 commands.
 
 ---
 
@@ -367,6 +367,7 @@ everything-claude-code/
 |   |-- perl-testing/              # Perl TDD with Test2::V0, prove, Devel::Cover (NEW)
 |   |-- autonomous-loops/           # Autonomous loop patterns: sequential pipelines, PR loops, DAG orchestration (NEW)
 |   |-- plankton-code-quality/      # Write-time code quality enforcement with Plankton hooks (NEW)
+|   |-- context-sync/              # Documentation role audit: overlap detection, ADR migration, freshness check (NEW)
 |
 |-- commands/         # Slash commands for quick execution
 |   |-- tdd.md              # /tdd - Test-driven development
@@ -1085,7 +1086,7 @@ The configuration is automatically detected from `.opencode/opencode.json`.
 |---------|-------------|----------|--------|
 | Agents | ✅ 28 agents | ✅ 12 agents | **Claude Code leads** |
 | Commands | ✅ 60 commands | ✅ 31 commands | **Claude Code leads** |
-| Skills | ✅ 119 skills | ✅ 37 skills | **Claude Code leads** |
+| Skills | ✅ 120 skills | ✅ 37 skills | **Claude Code leads** |
 | Hooks | ✅ 8 event types | ✅ 11 events | **OpenCode has more!** |
 | Rules | ✅ 29 rules | ✅ 13 instructions | **Claude Code leads** |
 | MCP Servers | ✅ 14 servers | ✅ Full | **Full parity** |
