@@ -4,7 +4,17 @@ const {
   createFlatRuleOperations,
   createInstallTargetAdapter,
   createManagedScaffoldOperation,
+  normalizeRelativePath,
 } = require('./helpers');
+
+const SUPPORTED_SOURCE_PREFIXES = ['rules', 'commands', 'agents', '.agents', 'AGENTS.md'];
+
+function supportsAntigravitySourcePath(sourceRelativePath) {
+  const normalizedPath = normalizeRelativePath(sourceRelativePath);
+  return SUPPORTED_SOURCE_PREFIXES.some(prefix => (
+    normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
+  ));
+}
 
 module.exports = createInstallTargetAdapter({
   id: 'antigravity-project',
@@ -12,6 +22,10 @@ module.exports = createInstallTargetAdapter({
   kind: 'project',
   rootSegments: ['.agent'],
   installStatePathSegments: ['ecc-install-state.json'],
+  supportsModule(module) {
+    const paths = Array.isArray(module && module.paths) ? module.paths : [];
+    return paths.length > 0 && paths.every(supportsAntigravitySourcePath);
+  },
   planOperations(input, adapter) {
     const modules = Array.isArray(input.modules)
       ? input.modules

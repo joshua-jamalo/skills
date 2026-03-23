@@ -1,6 +1,4 @@
-**Language:** English | [Português (Brasil)](docs/pt-BR/README.md) | [简体中文](README.zh-CN.md) | [繁體中文](docs/zh-TW/README.md) | [日本語](docs/ja-JP/README.md) | [한국어](docs/ko-KR/README.md)
- [Türkçe](docs/tr/README.md)
-
+**Language:** English | [Português (Brasil)](docs/pt-BR/README.md) | [简体中文](README.zh-CN.md) | [繁體中文](docs/zh-TW/README.md) | [日本語](docs/ja-JP/README.md) | [한국어](docs/ko-KR/README.md) | [Türkçe](docs/tr/README.md)
 
 # Everything Claude Code
 
@@ -212,7 +210,7 @@ For manual install instructions see the README in the `rules/` folder.
 /plugin list everything-claude-code@everything-claude-code
 ```
 
-✨ **That's it!** You now have access to 28 agents, 119 skills, and 60 commands.
+✨ **That's it!** You now have access to 28 agents, 125 skills, and 60 commands.
 
 ---
 
@@ -1085,7 +1083,7 @@ The configuration is automatically detected from `.opencode/opencode.json`.
 |---------|-------------|----------|--------|
 | Agents | ✅ 28 agents | ✅ 12 agents | **Claude Code leads** |
 | Commands | ✅ 60 commands | ✅ 31 commands | **Claude Code leads** |
-| Skills | ✅ 119 skills | ✅ 37 skills | **Claude Code leads** |
+| Skills | ✅ 125 skills | ✅ 37 skills | **Claude Code leads** |
 | Hooks | ✅ 8 event types | ✅ 11 events | **OpenCode has more!** |
 | Rules | ✅ 29 rules | ✅ 13 instructions | **Claude Code leads** |
 | MCP Servers | ✅ 14 servers | ✅ Full | **Full parity** |
@@ -1192,9 +1190,9 @@ ECC is the **first plugin to maximize every major AI coding tool**. Here's how e
 
 | Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |
 |---------|------------|------------|-----------|----------|
-| **Agents** | 21 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |
-| **Commands** | 52 | Shared | Instruction-based | 31 |
-| **Skills** | 102 | Shared | 10 (native format) | 37 |
+| **Agents** | 28 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |
+| **Commands** | 60 | Shared | Instruction-based | 31 |
+| **Skills** | 125 | Shared | 10 (native format) | 37 |
 | **Hook Events** | 8 types | 15 types | None yet | 11 types |
 | **Hook Scripts** | 20+ scripts | 16 scripts (DRY adapter) | N/A | Plugin hooks |
 | **Rules** | 34 (common + lang) | 34 (YAML frontmatter) | Instruction-based | 13 instructions |

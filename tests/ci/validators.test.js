@@ -152,11 +152,15 @@ function runValidator(validatorName) {
   }
 }
 
-function runCatalogValidator(overrides = {}) {
+function runCatalogValidator(options = {}) {
+  const {
+    overrides = {},
+    argv = ['--text'],
+  } = options;
   const validatorPath = path.join(validatorsDir, 'catalog.js');
   let source = fs.readFileSync(validatorPath, 'utf8');
   source = stripShebang(source);
-  source = `process.argv.push('--text');\n${source}`;
+  source = `process.argv = ['node', ${JSON.stringify(validatorPath)}, ${argv.map(value => JSON.stringify(value)).join(', ')}];\n${source}`;
 
   const resolvedOverrides = {
     ROOT: repoRoot,
@@ -176,29 +180,50 @@ function runCatalogValidator(overrides = {}) {
 function writeCatalogFixture(testDir, options = {}) {
   const {
     readmeCounts = { agents: 1, skills: 1, commands: 1 },
+    readmeTableCounts = readmeCounts,
+    readmeParityCounts = readmeCounts,
+    readmeUnrelatedSkillsCount = 16,
     summaryCounts = { agents: 1, skills: 1, commands: 1 },
     structureLines = [
       'agents/          — 1 specialized subagents',
       'skills/          — 1 workflow skills and domain knowledge',
       'commands/        — 1 slash commands',
     ],
+    zhRootReadmeCounts = { agents: 1, skills: 1, commands: 1 },
+    zhDocsReadmeCounts = { agents: 1, skills: 1, commands: 1 },
+    zhDocsTableCounts = zhDocsReadmeCounts,
+    zhDocsParityCounts = zhDocsReadmeCounts,
+    zhDocsUnrelatedSkillsCount = 16,
+    zhAgentsSummaryCounts = { agents: 1, skills: 1, commands: 1 },
+    zhAgentsStructureLines = [
+      'agents/          — 1 个专业子代理',
+      'skills/          — 1 个工作流技能和领域知识',
+      'commands/        — 1 个斜杠命令',
+    ],
   } = options;
 
   const readmePath = path.join(testDir, 'README.md');
   const agentsPath = path.join(testDir, 'AGENTS.md');
+  const zhRootReadmePath = path.join(testDir, 'README.zh-CN.md');
+  const zhDocsReadmePath = path.join(testDir, 'docs', 'zh-CN', 'README.md');
+  const zhAgentsPath = path.join(testDir, 'docs', 'zh-CN', 'AGENTS.md');
 
   fs.mkdirSync(path.join(testDir, 'agents'), { recursive: true });
   fs.mkdirSync(path.join(testDir, 'commands'), { recursive: true });
   fs.mkdirSync(path.join(testDir, 'skills', 'demo-skill'), { recursive: true });
+  fs.mkdirSync(path.dirname(zhDocsReadmePath), { recursive: true });
 
   fs.writeFileSync(path.join(testDir, 'agents', 'planner.md'), '---\nmodel: sonnet\ntools: Read\n---\n# Planner');
   fs.writeFileSync(path.join(testDir, 'commands', 'plan.md'), '---\ndescription: Plan\n---\n# Plan');
   fs.writeFileSync(path.join(testDir, 'skills', 'demo-skill', 'SKILL.md'), '---\nname: demo-skill\ndescription: Demo skill\norigin: ECC\n---\n# Demo Skill');
 
-  fs.writeFileSync(readmePath, `Access to ${readmeCounts.agents} agents, ${readmeCounts.skills} skills, and ${readmeCounts.commands} commands.\n| Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |\n|---------|------------|------------|-----------|----------|\n| Agents | ✅ ${readmeCounts.agents} agents | Shared | Shared | 1 |\n| Commands | ✅ ${readmeCounts.commands} commands | Shared | Shared | 1 |\n| Skills | ✅ ${readmeCounts.skills} skills | Shared | Shared | 1 |\n`);
+  fs.writeFileSync(readmePath, `Access to ${readmeCounts.agents} agents, ${readmeCounts.skills} skills, and ${readmeCounts.commands} commands.\n| Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |\n|---------|------------|------------|-----------|----------|\n| Agents | ✅ ${readmeTableCounts.agents} agents | Shared | Shared | 1 |\n| Commands | ✅ ${readmeTableCounts.commands} commands | Shared | Shared | 1 |\n| Skills | ✅ ${readmeTableCounts.skills} skills | Shared | Shared | 1 |\n\n| Feature | Count | Format |\n|-----------|-------|---------|\n| Skills | ${readmeUnrelatedSkillsCount} | .agents/skills/ |\n\n## Cross-Tool Feature Parity\n\n| Feature | Claude Code | Cursor IDE | Codex CLI | OpenCode |\n|---------|------------|------------|-----------|----------|\n| **Agents** | ${readmeParityCounts.agents} | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |\n| **Commands** | ${readmeParityCounts.commands} | Shared | Instruction-based | 31 |\n| **Skills** | ${readmeParityCounts.skills} | Shared | 10 (native format) | 37 |\n`);
   fs.writeFileSync(agentsPath, `This is a **production-ready AI coding plugin** providing ${summaryCounts.agents} specialized agents, ${summaryCounts.skills} skills, ${summaryCounts.commands} commands, and automated hook workflows for software development.\n\n\`\`\`\n${structureLines.join('\n')}\n\`\`\`\n`);
+  fs.writeFileSync(zhRootReadmePath, `✨ **完成！** 你现在可以使用 ${zhRootReadmeCounts.agents} 个代理、${zhRootReadmeCounts.skills} 个技能和 ${zhRootReadmeCounts.commands} 个命令。\n`);
+  fs.writeFileSync(zhDocsReadmePath, `✨ **搞定！** 你现在可以使用 ${zhDocsReadmeCounts.agents} 个智能体、${zhDocsReadmeCounts.skills} 项技能和 ${zhDocsReadmeCounts.commands} 个命令了。\n| 功能特性 | Claude Code | OpenCode | 状态 |\n|---------|-------------|----------|--------|\n| 智能体 | ✅ ${zhDocsTableCounts.agents} 个 | ✅ 12 个 | **Claude Code 领先** |\n| 命令 | ✅ ${zhDocsTableCounts.commands} 个 | ✅ 31 个 | **Claude Code 领先** |\n| 技能 | ✅ ${zhDocsTableCounts.skills} 项 | ✅ 37 项 | **Claude Code 领先** |\n\n| 功能特性 | 数量 | 格式 |\n|-----------|-------|---------|\n| 技能 | ${zhDocsUnrelatedSkillsCount} | .agents/skills/ |\n\n## 跨工具功能对等\n\n| 功能特性 | Claude Code | Cursor IDE | Codex CLI | OpenCode |\n|---------|------------|------------|-----------|----------|\n| **智能体** | ${zhDocsParityCounts.agents} | 共享 (AGENTS.md) | 共享 (AGENTS.md) | 12 |\n| **命令** | ${zhDocsParityCounts.commands} | 共享 | 基于指令 | 31 |\n| **技能** | ${zhDocsParityCounts.skills} | 共享 | 10 (原生格式) | 37 |\n`);
+  fs.writeFileSync(zhAgentsPath, `这是一个**生产就绪的 AI 编码插件**，提供 ${zhAgentsSummaryCounts.agents} 个专业代理、${zhAgentsSummaryCounts.skills} 项技能、${zhAgentsSummaryCounts.commands} 条命令以及自动化钩子工作流，用于软件开发。\n\n\`\`\`\n${zhAgentsStructureLines.join('\n')}\n\`\`\`\n`);
 
-  return { readmePath, agentsPath };
+  return { readmePath, agentsPath, zhRootReadmePath, zhDocsReadmePath, zhAgentsPath };
 }
 
 function runTests() {
@@ -352,9 +377,11 @@ function runTests() {
     });
 
     const result = runCatalogValidator({
-      ROOT: testDir,
-      README_PATH: readmePath,
-      AGENTS_PATH: agentsPath,
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
     });
 
     assert.strictEqual(result.code, 1, 'Should fail when catalog counts drift');
@@ -370,15 +397,212 @@ function runTests() {
         '\tskills/\t–\t1+ workflow skills and domain knowledge\t',
         ' commands/ — 1 slash commands ',
       ],
+      zhAgentsStructureLines: [
+        '  agents/   -   1 个专业子代理   ',
+        '\tskills/\t–\t1+ 个工作流技能和领域知识\t',
+        ' commands/ — 1 个斜杠命令 ',
+      ],
     });
 
     const result = runCatalogValidator({
-      ROOT: testDir,
-      README_PATH: readmePath,
-      AGENTS_PATH: agentsPath,
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
     });
 
     assert.strictEqual(result.code, 0, `Should accept formatting variations, got stderr: ${result.stderr}`);
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('fails when zh-CN catalog counts drift', () => {
+    const testDir = createTestDir();
+    const { readmePath, agentsPath } = writeCatalogFixture(testDir, {
+      readmeCounts: { agents: 1, skills: 1, commands: 1 },
+      readmeTableCounts: { agents: 1, skills: 1, commands: 1 },
+      summaryCounts: { agents: 1, skills: 1, commands: 1 },
+      zhRootReadmeCounts: { agents: 9, skills: 9, commands: 9 },
+      zhDocsReadmeCounts: { agents: 8, skills: 8, commands: 8 },
+      zhDocsTableCounts: { agents: 7, skills: 7, commands: 7 },
+      zhAgentsSummaryCounts: { agents: 6, skills: 6, commands: 6 },
+      zhAgentsStructureLines: [
+        'agents/          — 5 个专业子代理',
+        'skills/          — 4 个工作流技能和领域知识',
+        'commands/        — 3 个斜杠命令',
+      ],
+    });
+
+    const result = runCatalogValidator({
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+
+    assert.strictEqual(result.code, 1, 'Should fail when zh-CN docs drift');
+    assert.ok(
+      (result.stdout + result.stderr).includes('README.zh-CN.md'),
+      'Should mention the zh-CN root README mismatch'
+    );
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('fails when README parity table counts drift', () => {
+    const testDir = createTestDir();
+    const { readmePath, agentsPath } = writeCatalogFixture(testDir, {
+      readmeCounts: { agents: 1, skills: 1, commands: 1 },
+      readmeTableCounts: { agents: 1, skills: 1, commands: 1 },
+      readmeParityCounts: { agents: 9, skills: 8, commands: 7 },
+      summaryCounts: { agents: 1, skills: 1, commands: 1 },
+    });
+
+    const result = runCatalogValidator({
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+
+    assert.strictEqual(result.code, 1, 'Should fail when README parity table drifts');
+    assert.ok(
+      (result.stdout + result.stderr).includes('README.md parity table'),
+      'Should mention the README parity table mismatch'
+    );
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('fails when a tracked catalog document is missing', () => {
+    const testDir = createTestDir();
+    const { readmePath, agentsPath, zhAgentsPath } = writeCatalogFixture(testDir);
+    fs.rmSync(zhAgentsPath);
+
+    const result = runCatalogValidator({
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+
+    assert.strictEqual(result.code, 1, 'Should fail when a tracked catalog document is missing');
+    assert.ok(
+      (result.stdout + result.stderr).includes('docs/zh-CN/AGENTS.md'),
+      'Should mention the missing tracked document'
+    );
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('writes synced counts back to English and zh-CN docs', () => {
+    const testDir = createTestDir();
+    const {
+      readmePath,
+      agentsPath,
+      zhRootReadmePath,
+      zhDocsReadmePath,
+      zhAgentsPath,
+    } = writeCatalogFixture(testDir, {
+      readmeCounts: { agents: 9, skills: 9, commands: 9 },
+      readmeTableCounts: { agents: 8, skills: 8, commands: 8 },
+      readmeParityCounts: { agents: 7, skills: 7, commands: 7 },
+      summaryCounts: { agents: 7, skills: 7, commands: 7 },
+      structureLines: [
+        'agents/          — 6 specialized subagents',
+        'skills/          — 5 workflow skills and domain knowledge',
+        'commands/        — 4 slash commands',
+      ],
+      zhRootReadmeCounts: { agents: 10, skills: 10, commands: 10 },
+      zhDocsReadmeCounts: { agents: 11, skills: 11, commands: 11 },
+      zhDocsTableCounts: { agents: 12, skills: 12, commands: 12 },
+      zhDocsParityCounts: { agents: 13, skills: 13, commands: 13 },
+      zhAgentsSummaryCounts: { agents: 13, skills: 13, commands: 13 },
+      zhAgentsStructureLines: [
+        'agents/          — 14 个专业子代理',
+        'skills/          — 15 个工作流技能和领域知识',
+        'commands/        — 16 个斜杠命令',
+      ],
+    });
+
+    const writeResult = runCatalogValidator({
+      argv: ['--write', '--text'],
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+    assert.strictEqual(writeResult.code, 0, `Should sync docs, got stderr: ${writeResult.stderr}`);
+    assert.ok(
+      writeResult.stdout.includes('Updated documentation counts in'),
+      'Should report updated files'
+    );
+
+    const checkResult = runCatalogValidator({
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+    assert.strictEqual(checkResult.code, 0, `Synced docs should validate, got stderr: ${checkResult.stderr}`);
+
+    const readme = fs.readFileSync(readmePath, 'utf8');
+    const agentsDoc = fs.readFileSync(agentsPath, 'utf8');
+    const zhRootReadme = fs.readFileSync(zhRootReadmePath, 'utf8');
+    const zhDocsReadme = fs.readFileSync(zhDocsReadmePath, 'utf8');
+    const zhAgentsDoc = fs.readFileSync(zhAgentsPath, 'utf8');
+
+    assert.ok(readme.includes('Access to 1 agents, 1 skills, and 1 commands.'), 'Should sync README quick-start summary');
+    assert.ok(readme.includes('| Agents | ✅ 1 agents |'), 'Should sync README comparison table');
+    assert.ok(readme.includes('| Skills | 16 | .agents/skills/ |'), 'Should not rewrite unrelated README tables');
+    assert.ok(readme.includes('| **Agents** | 1 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |'), 'Should sync README parity table');
+    assert.ok(agentsDoc.includes('providing 1 specialized agents, 1 skills, 1 commands'), 'Should sync AGENTS summary');
+    assert.ok(agentsDoc.includes('skills/          — 1 workflow skills and domain knowledge'), 'Should sync AGENTS structure');
+    assert.ok(zhRootReadme.includes('你现在可以使用 1 个代理、1 个技能和 1 个命令'), 'Should sync README.zh-CN quick-start summary');
+    assert.ok(zhDocsReadme.includes('你现在可以使用 1 个智能体、1 项技能和 1 个命令了'), 'Should sync docs/zh-CN/README quick-start summary');
+    assert.ok(zhDocsReadme.includes('| 智能体 | ✅ 1 个 |'), 'Should sync docs/zh-CN/README comparison table');
+    assert.ok(zhDocsReadme.includes('| 技能 | 16 | .agents/skills/ |'), 'Should not rewrite unrelated docs/zh-CN/README tables');
+    assert.ok(zhDocsReadme.includes('| **智能体** | 1 | 共享 (AGENTS.md) | 共享 (AGENTS.md) | 12 |'), 'Should sync docs/zh-CN/README parity table');
+    assert.ok(zhAgentsDoc.includes('提供 1 个专业代理、1 项技能、1 条命令'), 'Should sync docs/zh-CN/AGENTS summary');
+    assert.ok(zhAgentsDoc.includes('commands/        — 1 个斜杠命令'), 'Should sync docs/zh-CN/AGENTS structure');
+
+    cleanupTestDir(testDir);
+  })) passed++; else failed++;
+
+  if (test('does not partially rewrite docs when write mode hits a later validation error', () => {
+    const testDir = createTestDir();
+    const {
+      readmePath,
+      agentsPath,
+      zhAgentsPath,
+    } = writeCatalogFixture(testDir, {
+      readmeCounts: { agents: 9, skills: 9, commands: 9 },
+      readmeTableCounts: { agents: 8, skills: 8, commands: 8 },
+    });
+    const originalReadme = fs.readFileSync(readmePath, 'utf8');
+    fs.writeFileSync(zhAgentsPath, '# broken marker file\n');
+
+    const result = runCatalogValidator({
+      argv: ['--write', '--text'],
+      overrides: {
+        ROOT: testDir,
+        README_PATH: readmePath,
+        AGENTS_PATH: agentsPath,
+      }
+    });
+
+    assert.strictEqual(result.code, 1, 'Should fail when a later document cannot be synced');
+    assert.ok(
+      (result.stdout + result.stderr).includes('docs/zh-CN/AGENTS.md'),
+      'Should mention the later failing document'
+    );
+    assert.strictEqual(
+      fs.readFileSync(readmePath, 'utf8'),
+      originalReadme,
+      'Should not rewrite earlier docs before all sync validations pass'
+    );
     cleanupTestDir(testDir);
   })) passed++; else failed++;
 
