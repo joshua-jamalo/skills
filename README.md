@@ -212,7 +212,7 @@ For manual install instructions see the README in the `rules/` folder.
 /plugin list everything-claude-code@everything-claude-code
 ```
 
-✨ **That's it!** You now have access to 28 agents, 119 skills, and 60 commands.
+✨ **That's it!** You now have access to 28 agents, 126 skills, and 60 commands.
 
 ---
 
@@ -324,6 +324,7 @@ everything-claude-code/
 |   |-- videodb/                   # Video and audio: ingest, search, edit, generate, stream (NEW)
 |   |-- golang-patterns/            # Go idioms and best practices
 |   |-- golang-testing/             # Go testing patterns, TDD, benchmarks
+|   |-- harper-best-practices/      # Harper schema, APIs, authentication, deployment, and coding best practices (NEW)
 |   |-- cpp-coding-standards/         # C++ coding standards from C++ Core Guidelines (NEW)
 |   |-- cpp-testing/                # C++ testing with GoogleTest, CMake/CTest (NEW)
 |   |-- django-patterns/            # Django patterns, models, views (NEW)
@@ -419,6 +420,7 @@ everything-claude-code/
 |   |-- golang/              # Go specific
 |   |-- swift/               # Swift specific
 |   |-- php/                 # PHP specific (NEW)
+|   |-- harper/                # Harper specific (NEW)
 |
 |-- hooks/            # Trigger-based automations
 |   |-- README.md                 # Hook documentation, recipes, and customization guide
@@ -1085,7 +1087,7 @@ The configuration is automatically detected from `.opencode/opencode.json`.
 |---------|-------------|----------|--------|
 | Agents | ✅ 28 agents | ✅ 12 agents | **Claude Code leads** |
 | Commands | ✅ 60 commands | ✅ 31 commands | **Claude Code leads** |
-| Skills | ✅ 119 skills | ✅ 37 skills | **Claude Code leads** |
+| Skills | ✅ 126 skills | ✅ 37 skills | **Claude Code leads** |
 | Hooks | ✅ 8 event types | ✅ 11 events | **OpenCode has more!** |
 | Rules | ✅ 29 rules | ✅ 13 instructions | **Claude Code leads** |
 | MCP Servers | ✅ 14 servers | ✅ Full | **Full parity** |
