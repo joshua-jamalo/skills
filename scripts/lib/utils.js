@@ -28,10 +28,15 @@ function getClaudeDir() {
 }
 
 /**
- * Get the sessions directory
+ * Get the ECC sessions directory.
+ *
+ * Uses ~/.claude/ecc-sessions/ instead of ~/.claude/sessions/ to avoid
+ * collision with Claude Code's native session tracking, which stores
+ * PID-based lock files in ~/.claude/sessions/ and runs startup cleanup
+ * that deletes non-native files. See #745.
  */
 function getSessionsDir() {
-  return path.join(getClaudeDir(), 'sessions');
+  return path.join(getClaudeDir(), 'ecc-sessions');
 }
 
 /**
