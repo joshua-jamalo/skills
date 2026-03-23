@@ -1,7 +1,9 @@
 use anyhow::Result;
 use rusqlite::Connection;
 use std::path::Path;
+use std::time::Duration;
 
+use super::output::{OutputLine, OutputStream, OUTPUT_BUFFER_LIMIT};
 use super::{Session, SessionMetrics, SessionState};
 
 pub struct StateStore {
@@ -11,6 +13,7 @@ pub struct StateStore {
 impl StateStore {
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)?;
+        conn.busy_timeout(Duration::from_secs(5))?;
         let store = Self { conn };
         store.init_schema()?;
         Ok(store)
@@ -57,9 +60,19 @@ impl StateStore {
                 timestamp TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS session_output (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL REFERENCES sessions(id),
+                stream TEXT NOT NULL,
+                line TEXT NOT NULL,
+                timestamp TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sessions_state ON sessions(state);
             CREATE INDEX IF NOT EXISTS idx_tool_log_session ON tool_log(session_id);
             CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_session, read);
+            CREATE INDEX IF NOT EXISTS idx_session_output_session
+                ON session_output(session_id, id);
             ",
         )?;
         Ok(())
@@ -170,21 +183,127 @@ impl StateStore {
 
     pub fn get_session(&self, id: &str) -> Result<Option<Session>> {
         let sessions = self.list_sessions()?;
-        Ok(sessions.into_iter().find(|s| s.id == id || s.id.starts_with(id)))
+        Ok(sessions
+            .into_iter()
+            .find(|s| s.id == id || s.id.starts_with(id)))
     }
 
-    pub fn send_message(
-        &self,
-        from: &str,
-        to: &str,
-        content: &str,
-        msg_type: &str,
-    ) -> Result<()> {
+    pub fn send_message(&self, from: &str, to: &str, content: &str, msg_type: &str) -> Result<()> {
         self.conn.execute(
             "INSERT INTO messages (from_session, to_session, content, msg_type, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![from, to, content, msg_type, chrono::Utc::now().to_rfc3339()],
         )?;
+        Ok(())
+    }
+
+    pub fn append_output_line(
+        &self,
+        session_id: &str,
+        stream: OutputStream,
+        line: &str,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+
+        self.conn.execute(
+            "INSERT INTO session_output (session_id, stream, line, timestamp)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![session_id, stream.as_str(), line, now],
+        )?;
+
+        self.conn.execute(
+            "DELETE FROM session_output
+             WHERE session_id = ?1
+               AND id NOT IN (
+                   SELECT id
+                   FROM session_output
+                   WHERE session_id = ?1
+                   ORDER BY id DESC
+                   LIMIT ?2
+               )",
+            rusqlite::params![session_id, OUTPUT_BUFFER_LIMIT as i64],
+        )?;
+
+        self.conn.execute(
+            "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
+            rusqlite::params![chrono::Utc::now().to_rfc3339(), session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn get_output_lines(&self, session_id: &str, limit: usize) -> Result<Vec<OutputLine>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT stream, line
+             FROM (
+                 SELECT id, stream, line
+                 FROM session_output
+                 WHERE session_id = ?1
+                 ORDER BY id DESC
+                 LIMIT ?2
+             )
+             ORDER BY id ASC",
+        )?;
+
+        let lines = stmt
+            .query_map(rusqlite::params![session_id, limit as i64], |row| {
+                let stream: String = row.get(0)?;
+                let text: String = row.get(1)?;
+
+                Ok(OutputLine {
+                    stream: OutputStream::from_db_value(&stream),
+                    text,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(lines)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+
+    use anyhow::Result;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    use super::StateStore;
+    use crate::session::output::{OutputStream, OUTPUT_BUFFER_LIMIT};
+    use crate::session::{Session, SessionMetrics, SessionState};
+
+    #[test]
+    fn append_output_line_keeps_latest_buffer_window() -> Result<()> {
+        let db_path = env::temp_dir().join(format!("ecc2-store-{}.db", Uuid::new_v4()));
+        let db = StateStore::open(&db_path)?;
+        let now = Utc::now();
+
+        db.insert_session(&Session {
+            id: "session-1".to_string(),
+            task: "buffer output".to_string(),
+            agent_type: "claude".to_string(),
+            state: SessionState::Running,
+            worktree: None,
+            created_at: now,
+            updated_at: now,
+            metrics: SessionMetrics::default(),
+        })?;
+
+        for index in 0..(OUTPUT_BUFFER_LIMIT + 5) {
+            db.append_output_line("session-1", OutputStream::Stdout, &format!("line-{index}"))?;
+        }
+
+        let lines = db.get_output_lines("session-1", OUTPUT_BUFFER_LIMIT)?;
+        let texts: Vec<_> = lines.iter().map(|line| line.text.as_str()).collect();
+
+        assert_eq!(lines.len(), OUTPUT_BUFFER_LIMIT);
+        assert_eq!(texts.first().copied(), Some("line-5"));
+        let expected_last_line = format!("line-{}", OUTPUT_BUFFER_LIMIT + 4);
+        assert_eq!(texts.last().copied(), Some(expected_last_line.as_str()));
+
+        let _ = std::fs::remove_file(db_path);
+
         Ok(())
     }
 }
